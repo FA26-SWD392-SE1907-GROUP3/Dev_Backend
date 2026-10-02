@@ -1,128 +1,332 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
+
+    <!-- =========================================================
+         SPRING BOOT
+         ========================================================= -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.1</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <version>3.4.1</version>
+        <relativePath/>
     </parent>
+
+
+    <!-- =========================================================
+         PROJECT INFORMATION
+         ========================================================= -->
     <groupId>com.example</groupId>
     <artifactId>SWD392_SE1907_AIVES</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+
     <name>SWD392_SE1907_AIVES</name>
     <description>SWD392_SE1907_AIVES</description>
+
     <url/>
     <licenses>
         <license/>
     </licenses>
+
     <developers>
         <developer/>
     </developers>
+
     <scm>
         <connection/>
         <developerConnection/>
         <tag/>
         <url/>
     </scm>
+
+
+    <!-- =========================================================
+         PROPERTIES
+         ========================================================= -->
     <properties>
-        <java.version>17</java.version>
+
+        <!-- Java -->
+        <java.version>21</java.version>
+
+        <!-- Lombok -->
+        <projectlombok-lombok.version>1.18.36</projectlombok-lombok.version>
+
+        <!-- MapStruct -->
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
+
+        <!-- Spotless -->
+        <spotless.version>2.43.0</spotless.version>
+
     </properties>
+
+
+    <!-- =========================================================
+         DEPENDENCIES
+         ========================================================= -->
     <dependencies>
+
+
+        <!-- =====================================================
+             WEB
+             ===================================================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+
+        <!-- =====================================================
+             SPRING SECURITY
+             ===================================================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+
+        <!-- =====================================================
+             SPRING DATA JPA
+             ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jdbc</artifactId>
-        </dependency>
+
+
+        <!-- =====================================================
+             VALIDATION
+             ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+
+
+        <!-- =====================================================
+             ACTUATOR
+             ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webmvc</artifactId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+
+
+        <!-- =====================================================
+             MICROSOFT SQL SERVER
+             ===================================================== -->
         <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>3.1.0</version>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+
+        <!-- =====================================================
+             JWT
+             ===================================================== -->
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.5</version>
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-devtools</artifactId>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.5</version>
             <scope>runtime</scope>
-            <optional>true</optional>
         </dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.12.5</version>
+            <scope>runtime</scope>
+        </dependency>
+
+
+        <!-- =====================================================
+             LOMBOK
+             ===================================================== -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <version>${projectlombok-lombok.version}</version>
+            <scope>provided</scope>
         </dependency>
+
+
+        <!-- =====================================================
+             MAPSTRUCT
+             ===================================================== -->
+
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>${mapstruct.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+
+        <!-- =====================================================
+             TESTING
+             ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+            <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+
+        <!-- =====================================================
+             SPRINGDOC OPENAPI / SWAGGER
+             ===================================================== -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.8.5</version>
+        </dependency>
+
+
+        <!-- =====================================================
+             AOP
+             ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jdbc-test</artifactId>
-            <scope>test</scope>
+            <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
+
+
+        <!-- =====================================================
+             SPRING DOTENV
+             ===================================================== -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation-test</artifactId>
-            <scope>test</scope>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
         </dependency>
+
+
+        <!-- =====================================================
+             H2 - TEST DATABASE
+             ===================================================== -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
     </dependencies>
 
+
+    <!-- =========================================================
+         BUILD
+         ========================================================= -->
     <build>
+
         <plugins>
+
+
+            <!-- =================================================
+                 SPRING BOOT MAVEN PLUGIN
+                 ================================================= -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+
+                <configuration>
+
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+
+                </configuration>
             </plugin>
+
+
+            <!-- =================================================
+                 MAVEN COMPILER
+                 ================================================= -->
             <plugin>
+
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <annotationProcessorPaths>
-                                <path>
-                                    <groupId>org.projectlombok</groupId>
-                                    <artifactId>lombok</artifactId>
-                                </path>
-                            </annotationProcessorPaths>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>default-testCompile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
-                        <configuration>
-                            <annotationProcessorPaths>
-                                <path>
-                                    <groupId>org.projectlombok</groupId>
-                                    <artifactId>lombok</artifactId>
-                                </path>
-                            </annotationProcessorPaths>
-                        </configuration>
-                    </execution>
-                </executions>
+
+                <configuration>
+
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+
+                    <!-- Annotation Processors -->
+                    <annotationProcessorPaths>
+
+                        <!-- Lombok -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>
+                                ${projectlombok-lombok.version}
+                            </version>
+                        </path>
+
+                        <!-- Lombok MapStruct Binding -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>
+                                ${lombok-mapstruct-binding.version}
+                            </version>
+                        </path>
+
+                        <!-- MapStruct -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>
+                                ${mapstruct.version}
+                            </version>
+                        </path>
+
+                    </annotationProcessorPaths>
+
+
+                    <!-- MapStruct Configuration -->
+                    <compilerArgs>
+
+                        <arg>
+                            -Amapstruct.suppressGeneratorTimestamp=true
+                        </arg>
+
+                        <arg>
+                            -Amapstruct.defaultComponentModel=spring
+                        </arg>
+
+                        <arg>
+                            -Amapstruct.verbose=true
+                        </arg>
+
+                    </compilerArgs>
+
+                </configuration>
+
             </plugin>
+
         </plugins>
+
     </build>
 
 </project>

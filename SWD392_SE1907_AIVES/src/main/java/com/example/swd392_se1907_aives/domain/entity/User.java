@@ -1,5 +1,6 @@
 package com.example.swd392_se1907_aives.domain.entity;
 
+import com.example.swd392_se1907_aives.domain.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -26,7 +27,7 @@ public class User {
     private String username;
 
     @Column(name = "password_hash", nullable = false, length = 255)
-    private String passwordHash;
+    private String password;
 
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
@@ -36,6 +37,13 @@ public class User {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "cover_image")
+    String coverImage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_status", nullable = false)
+    UserStatus userStatus = UserStatus.ACTIVE;
 
     @PrePersist
     protected void onCreate() {
