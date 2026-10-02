@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "InterviewLogs")
+@Table(name = "interview_logs")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,39 +16,39 @@ public class InterviewLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "LogID")
+    @Column(name = "log_id")
     private Integer logId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ScheduleID", nullable = false)
+    @JoinColumn(name = "schedule_id", nullable = false)
     private ExamSchedule examSchedule;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "QuestionID", nullable = true)
+    @JoinColumn(name = "question_id", nullable = true)
     private Question question;
 
-    @Column(name = "QuestionContent", nullable = false, columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "question_content", nullable = false, columnDefinition = "NVARCHAR(MAX)")
     private String questionContent;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "QuestionType", nullable = false, length = 20)
+    @Column(name = "question_type", nullable = false, length = 20)
     private QuestionType questionType;
 
-    @Column(name = "QuestionAudioURL", length = 500)
+    @Column(name = "question_audio_url", length = 500)
     private String questionAudioUrl;
 
-    @Column(name = "StudentAnswerTranscript", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "student_answer_transcript", columnDefinition = "NVARCHAR(MAX)")
     private String studentAnswerTranscript;
 
-    @Column(name = "AnswerAudioURL", length = 500)
+    @Column(name = "answer_audio_url", length = 500)
     private String answerAudioUrl;
 
-    @Column(name = "AskedAt", nullable = false)
+    @Column(name = "asked_at", nullable = false)
     private LocalDateTime askedAt;
 
-    @Column(name = "AnsweredAt")
+    @Column(name = "answered_at")
     private LocalDateTime answeredAt;
 
-    @Column(name = "TimeTakenSeconds")
+    @Column(name = "time_taken_seconds")
     private Integer timeTakenSeconds;
 }

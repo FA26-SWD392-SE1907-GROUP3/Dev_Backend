@@ -4,25 +4,25 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "Subjects")
+@Table(name = "subjects")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-class Subject {
+public class Subject {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "SubjectID")
+    @Column(name = "subject_id")
     private Integer subjectId;
 
-    @Column(name = "SubjectCode", nullable = false, unique = true, length = 20)
+    @Column(name = "subject_code", nullable = false, unique = true, length = 20)
     private String subjectCode;
 
-    @Column(name = "SubjectName", nullable = false, length = 100)
+    @Column(name = "subject_name", nullable = false, length = 100)
     private String subjectName;
 
-    @Column(name = "Description", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description;
 }

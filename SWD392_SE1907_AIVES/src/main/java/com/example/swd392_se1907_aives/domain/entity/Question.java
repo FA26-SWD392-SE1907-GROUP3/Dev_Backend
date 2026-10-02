@@ -8,7 +8,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "Questions")
+@Table(name = "questions")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,40 +18,40 @@ public class Question {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "QuestionID")
+    @Column(name = "question_id")
     private Integer questionId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SubjectID", nullable = false)
+    @JoinColumn(name = "subject_id", nullable = false)
     private Subject subject;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "DocumentID", nullable = true)
+    @JoinColumn(name = "document_id", nullable = true)
     private SubjectDocument document;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CreatedBy", nullable = false)
+    @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
-    @Column(name = "Topic", length = 150)
+    @Column(name = "topic", length = 150)
     private String topic;
 
-    @Column(name = "QuestionContent", nullable = false, columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "question_content", nullable = false, columnDefinition = "NVARCHAR(MAX)")
     private String questionContent;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "BloomLevel", nullable = false, length = 50)
+    @Column(name = "bloom_level", nullable = false, length = 50)
     private BloomLevel bloomLevel;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "Source", nullable = false, length = 50)
+    @Column(name = "source", nullable = false, length = 50)
     private QuestionSource source;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "Status", nullable = false, length = 50)
+    @Column(name = "status", nullable = false, length = 50)
     private QuestionStatus status;
 
-    @Column(name = "CreatedAt")
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @PrePersist

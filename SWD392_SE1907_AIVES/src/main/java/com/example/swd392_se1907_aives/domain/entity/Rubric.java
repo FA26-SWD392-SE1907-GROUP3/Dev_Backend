@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "Rubrics")
+@Table(name = "rubrics")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,23 +16,23 @@ public class Rubric {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "RubricID")
+    @Column(name = "rubric_id")
     private Integer rubricId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "QuestionID", nullable = false)
+    @JoinColumn(name = "question_id", nullable = false)
     private Question question;
 
-    @Column(name = "CriteriaName", nullable = false, length = 255)
+    @Column(name = "criteria_name", nullable = false, length = 255)
     private String criteriaName;
 
-    @Column(name = "MaxScore", nullable = false, precision = 5, scale = 2)
+    @Column(name = "max_score", nullable = false, precision = 5, scale = 2)
     private BigDecimal maxScore;
 
-    @Column(name = "Guideline", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "guideline", columnDefinition = "NVARCHAR(MAX)")
     private String guideline;
 
-    @Column(name = "CreatedAt")
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @PrePersist

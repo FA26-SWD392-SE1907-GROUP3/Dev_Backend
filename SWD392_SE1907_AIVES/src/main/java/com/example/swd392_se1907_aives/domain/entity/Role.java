@@ -5,23 +5,23 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "Roles")
+@Table(name = "roles")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-class Role {
+public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "RoleID")
+    @Column(name = "role_id")
     private Integer roleId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "RoleName", nullable = false, unique = true, length = 50)
+    @Column(name = "role_name", nullable = false, unique = true, length = 50)
     private RoleName roleName;
 
-    @Column(name = "Description", length = 255)
+    @Column(name = "description", length = 255)
     private String description;
 }

@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ExamSchedules")
+@Table(name = "exam_schedules")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,31 +16,31 @@ public class ExamSchedule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ScheduleID")
+    @Column(name = "schedule_id")
     private Integer scheduleId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ExamID", nullable = false)
+    @JoinColumn(name = "exam_id", nullable = false)
     private ExamSession examSession;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "StudentID", nullable = false)
+    @JoinColumn(name = "student_id", nullable = false)
     private User student;
 
-    @Column(name = "AllocatedStartTime")
+    @Column(name = "allocated_start_time")
     private LocalDateTime allocatedStartTime;
 
-    @Column(name = "AllocatedEndTime")
+    @Column(name = "allocated_end_time")
     private LocalDateTime allocatedEndTime;
 
-    @Column(name = "ActualStartTime")
+    @Column(name = "actual_start_time")
     private LocalDateTime actualStartTime;
 
-    @Column(name = "ActualEndTime")
+    @Column(name = "actual_end_time")
     private LocalDateTime actualEndTime;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "Status", length = 50)
+    @Column(name = "status", length = 50)
     private ScheduleStatus status;
 
     @PrePersist
