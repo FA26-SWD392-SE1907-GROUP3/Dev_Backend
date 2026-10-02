@@ -1,5 +1,6 @@
 package com.example.swd392_se1907_aives.domain.entity;
 
+import com.example.swd392_se1907_aives.domain.enums.ExamStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -41,13 +42,14 @@ public class ExamSession {
     @Column(name = "MaxFollowUpQuestions", nullable = false)
     private Integer maxFollowUpQuestions;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "Status", length = 20)
-    private String status;
+    private ExamStatus status;
 
     @PrePersist
     protected void onCreate() {
         if (this.status == null) {
-            this.status = "Draft";
+            this.status = ExamStatus.DRAFT;
         }
     }
 }

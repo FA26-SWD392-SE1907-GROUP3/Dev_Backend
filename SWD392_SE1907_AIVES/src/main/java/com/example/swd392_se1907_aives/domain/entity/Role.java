@@ -1,5 +1,6 @@
 package com.example.swd392_se1907_aives.domain.entity;
 
+import com.example.swd392_se1907_aives.domain.enums.RoleName;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,8 +18,9 @@ class Role {
     @Column(name = "RoleID")
     private Integer roleId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "RoleName", nullable = false, unique = true, length = 50)
-    private String roleName;
+    private RoleName roleName;
 
     @Column(name = "Description", length = 255)
     private String description;

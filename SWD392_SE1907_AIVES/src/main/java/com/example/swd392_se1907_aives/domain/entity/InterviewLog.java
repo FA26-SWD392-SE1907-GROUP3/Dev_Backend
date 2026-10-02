@@ -1,5 +1,6 @@
 package com.example.swd392_se1907_aives.domain.entity;
 
+import com.example.swd392_se1907_aives.domain.enums.QuestionType;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -23,14 +24,15 @@ public class InterviewLog {
     private ExamSchedule examSchedule;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "QuestionID", nullable = true) // NULL nếu là câu hỏi đào sâu do AI sinh ngẫu nhiên
+    @JoinColumn(name = "QuestionID", nullable = true)
     private Question question;
 
     @Column(name = "QuestionContent", nullable = false, columnDefinition = "NVARCHAR(MAX)")
     private String questionContent;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "QuestionType", nullable = false, length = 20)
-    private String questionType;
+    private QuestionType questionType;
 
     @Column(name = "QuestionAudioURL", length = 500)
     private String questionAudioUrl;
