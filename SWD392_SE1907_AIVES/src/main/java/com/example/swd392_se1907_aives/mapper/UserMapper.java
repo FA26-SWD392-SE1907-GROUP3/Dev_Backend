@@ -20,6 +20,7 @@ public interface UserMapper {
 
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "coverImage", ignore = true)
     User toUser(UserCreationRequest request);
 
     @Mapping(target = "userId", ignore = true)

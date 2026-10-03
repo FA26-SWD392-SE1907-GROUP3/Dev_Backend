@@ -35,11 +35,6 @@ public class UserController {
      * ===============
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'ANNOTATOR', 'REVIEWER')")
-    @Operation(
-            summary = "Get all users",
-            description = "Retrieve a list of all registered users in the system"
-    )
     public ApiResponse<List<UserResponse>> getAllUsersApiResponse() {
         return ApiResponse.<List<UserResponse>>builder()
                 .code(200)
@@ -54,11 +49,6 @@ public class UserController {
      * ===============
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'ANNOTATOR', 'REVIEWER')")
-    @Operation(
-            summary = "Get user by ID",
-            description = "Retrieve detailed information about a specific user"
-    )
     public ApiResponse<UserResponse> getUserById(@PathVariable String id) {
         ApiResponse<UserResponse> response = new ApiResponse<>();
 
@@ -75,11 +65,6 @@ public class UserController {
      * ===============
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN')")
-    @Operation(
-            summary = "Create new user",
-            description = "Register a new user in the system with role assignment"
-    )
     public ApiResponse<UserResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
         ApiResponse<UserResponse> response = new ApiResponse<>();
 
@@ -117,11 +102,6 @@ public class UserController {
      * ===============
      */
     @PutMapping("/update/password/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'ANNOTATOR', 'REVIEWER')")
-    @Operation(
-            summary = "Change user password",
-            description = "Update user password with old password verification"
-    )
     public ApiResponse<UserResponse> updateUserPassword(@PathVariable String id, @RequestBody @Valid UserPasswordChangeRequest request) {
         ApiResponse<UserResponse> response = new ApiResponse<>();
         response.setCode(200);
@@ -158,11 +138,6 @@ public class UserController {
      * ===============
      */
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN')")
-    @Operation(
-            summary = "Activate user",
-            description = "Activate a user account"
-    )
     public ApiResponse<UserResponse> activateUser(@PathVariable String id) {
         ApiResponse<UserResponse> response = new ApiResponse<>();
 

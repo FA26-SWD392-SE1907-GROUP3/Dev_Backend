@@ -1,7 +1,7 @@
 package com.example.swd392_se1907_aives.service;
 
 
-import com.example.swd392_se1907_aives.domain.entity.Role;
+import com.example.swd392_se1907_aives.domain.enums.RoleName;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -29,17 +29,17 @@ public class JwtService {
     }
 
     public String generateToken(
-            Integer userId,
+            String userId,
             String email,
             String username,
             String coverImage,
-            Role role) {
+            String role) {
         return Jwts.builder()
-                .subject(userId.toString())
+                .subject(userId)
                 .claim("email", email)
                 .claim("username", username)
                 .claim("coverImage", coverImage)
-                .claim("role", role.getRoleName())
+                .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSignKey())
@@ -55,17 +55,15 @@ public class JwtService {
                 .getSubject();
     }
 
-    public Role extractRole(String token) {
-        Integer roleId = Jwts.parser()
+    public RoleName extractRole(String token) {
+        String role = Jwts.parser()
                 .verifyWith(getSignKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload()
-                .get("role", Integer.class);
+                .get("role", String.class);
 
-        return Role.builder()
-                .roleId(roleId)
-                .build();
+        return RoleName.valueOf(role);
     }
 
     public boolean validateToken(String token) {

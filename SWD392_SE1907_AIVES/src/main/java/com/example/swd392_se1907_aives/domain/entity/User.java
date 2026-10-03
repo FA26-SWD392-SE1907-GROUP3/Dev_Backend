@@ -1,5 +1,6 @@
 package com.example.swd392_se1907_aives.domain.entity;
 
+import com.example.swd392_se1907_aives.domain.enums.RoleName;
 import com.example.swd392_se1907_aives.domain.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,16 +18,16 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
-    private Integer userId;
+    private String userId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id", nullable = false)
-    private Role role;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role_name", nullable = false)
+    private RoleName role;
 
     @Column(name = "username", nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
 
     @Column(name = "full_name", nullable = false, length = 100)

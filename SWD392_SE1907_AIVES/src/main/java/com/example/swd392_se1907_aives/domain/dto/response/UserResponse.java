@@ -2,7 +2,7 @@ package com.example.swd392_se1907_aives.domain.dto.response;
 
 import java.time.LocalDate;
 
-import com.example.swd392_se1907_aives.domain.entity.Role;
+import com.example.swd392_se1907_aives.domain.enums.RoleName;
 import com.example.swd392_se1907_aives.domain.enums.UserStatus;
 
 import lombok.AllArgsConstructor;
@@ -24,7 +24,7 @@ public class UserResponse {
     String email;
     String coverImage;
     String specialization;
-    Role role;
+    RoleName role;
     UserStatus userStatus;
     LocalDate createdAt;
 }

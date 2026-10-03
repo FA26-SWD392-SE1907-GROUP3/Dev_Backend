@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         userRepository.findById(userId).ifPresent(user -> {
             var authorities = List.of(
-                    new SimpleGrantedAuthority("ROLE_" + user.getRole().getRoleName()));
+                    new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     user, null, authorities);
@@ -68,6 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         return path.startsWith("/api/v1/auth")

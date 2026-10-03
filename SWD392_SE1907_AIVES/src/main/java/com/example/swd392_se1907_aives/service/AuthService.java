@@ -31,7 +31,7 @@ public class AuthService {
                 user.getEmail(),
                 user.getUsername(),
                 user.getCoverImage(),
-                user.getRole());
+                user.getRole().toString());
 
         return AuthResponse.builder()
                 .authenticate(true)

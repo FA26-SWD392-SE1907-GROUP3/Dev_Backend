@@ -1,6 +1,6 @@
 package com.example.swd392_se1907_aives.domain.dto.request;
 
-import com.example.swd392_se1907_aives.domain.entity.Role;
+import com.example.swd392_se1907_aives.domain.enums.RoleName;
 import com.example.swd392_se1907_aives.domain.enums.UserStatus;
 
 import jakarta.validation.constraints.Email;
@@ -30,9 +30,7 @@ public class UserUpdateRequest {
 
     String coverImage;
 
-    String specialization;
-
-    Role role;
+    RoleName role;
 
     UserStatus userStatus;
 }
