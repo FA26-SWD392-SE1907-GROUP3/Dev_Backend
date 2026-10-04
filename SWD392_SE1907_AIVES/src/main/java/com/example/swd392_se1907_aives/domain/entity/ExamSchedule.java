@@ -1,5 +1,6 @@
 package com.example.swd392_se1907_aives.domain.entity;
 
+import com.example.swd392_se1907_aives.domain.enums.ScheduleStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -38,13 +39,15 @@ public class ExamSchedule {
     @Column(name = "ActualEndTime")
     private LocalDateTime actualEndTime;
 
+    @Enumerated(EnumType.STRING)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.VARCHAR)
     @Column(name = "Status", length = 50)
-    private String status;
+    private ScheduleStatus status;
 
     @PrePersist
     protected void onCreate() {
         if (this.status == null) {
-            this.status = "Not_Started";
+            this.status = ScheduleStatus.NOT_STARTED;
         }
     }
 }

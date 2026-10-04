@@ -38,6 +38,9 @@ public class SubjectDocument {
     @Column(name = "Status", length = 30)
     private String status;
 
+    @Column(name = "ExtractedText", columnDefinition = "NVARCHAR(MAX)")
+    private String extractedText;
+
     @Column(name = "UploadedAt")
     private LocalDateTime uploadedAt;
 
@@ -45,7 +48,7 @@ public class SubjectDocument {
     protected void onCreate() {
         this.uploadedAt = LocalDateTime.now();
         if (this.status == null) {
-            this.status = "Indexed";
+            this.status = "PROCESSING";
         }
     }
 }
