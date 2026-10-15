@@ -1,0 +1,33 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: aives-backend
+  datasource:
+    # Copy JDBC URL (jdbc:postgresql://...) from Neon, NOT postgresql://.
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 0
+      connection-timeout: 30000
+  jackson:
+    time-zone: UTC
+  sql:
+    init:
+      mode: never   # Schema is already managed via 01_schema.sql; never auto-run seed.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+aives:
+  security:
+    jwt-secret: ${JWT_SECRET}
+    token-minutes: ${JWT_TOKEN_MINUTES:120}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
