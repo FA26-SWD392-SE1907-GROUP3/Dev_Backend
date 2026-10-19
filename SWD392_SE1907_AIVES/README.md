@@ -33,3 +33,8 @@ Sao lưu project. Chép thư mục `src` trong bản vá vào `D:\Dev_Backend\SW
 AuthController gốc dùng `@FieldDefaults(makeFinal=true)` nên không thể kết luận chắc chắn bị null injection; bản thay thế chỉ làm rõ `private final`. JWT_SECRET phải có ít nhất 32 byte cho HS256. Kiểm tra BCrypt và lỗi cụ thể từ backend nếu còn 500. Không chép giá trị bí mật thật vào Git.
 
 Đã kiểm tra Maven test trên H2 và giao diện bằng Playwright. Xem phạm vi kiểm tra trong hai tài liệu tính năng bên dưới.
+# Kiến trúc backend hiện tại
+
+Backend đã được tổ chức theo **Modular Monolith** với ba module Identity, Teaching và Examination. Mỗi module có `api` và `internal`, giao tiếp qua interface/record; entity và repository thuộc module sở hữu. `ModuleArchitectureTests` kiểm tra ranh giới và chu trình phụ thuộc khi build.
+
+Xem [MODULAR_MONOLITH.md](MODULAR_MONOLITH.md) để biết sơ đồ, hợp đồng, giao dịch và cách chạy sau khi đổi package. Lần đầu nạp cấu trúc mới cần **Stop backend → Rebuild Project → Run**, hoặc Stop rồi `mvnw.cmd clean package`, để tránh class cũ còn trong output.

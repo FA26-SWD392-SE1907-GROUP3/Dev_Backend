@@ -1,8 +1,22 @@
 package com.example.swd392_se1907_aives;
 
-import com.example.swd392_se1907_aives.domain.entity.*;
-import com.example.swd392_se1907_aives.repository.*;
-import com.example.swd392_se1907_aives.service.*;
+import com.example.swd392_se1907_aives.modules.identity.internal.domain.entity.User;
+import com.example.swd392_se1907_aives.modules.identity.internal.repository.UserRepository;
+import com.example.swd392_se1907_aives.modules.identity.internal.service.JwtService;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.Course;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.CourseLecturer;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.CourseLecturerId;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.MaterialChunk;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.CourseLecturerRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.CourseMaterialRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.CourseRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.MaterialChunkRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.QuestionRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.QuestionSourceChunkRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.service.MaterialService;
+import com.example.swd392_se1907_aives.modules.teaching.internal.service.OpenAiQuestionClient;
+
+
 import com.fasterxml.jackson.databind.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;

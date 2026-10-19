@@ -1,5 +1,8 @@
 package com.example.swd392_se1907_aives.service;
 
+import com.example.swd392_se1907_aives.modules.teaching.internal.service.OpenAiQuestionClient;
+
+
 import com.fasterxml.jackson.databind.*;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.*;

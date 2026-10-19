@@ -1,8 +1,34 @@
 package com.example.swd392_se1907_aives;
 
-import com.example.swd392_se1907_aives.domain.entity.*;
-import com.example.swd392_se1907_aives.repository.*;
-import com.example.swd392_se1907_aives.service.*;
+import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.Exam;
+import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamCandidate;
+import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamQuestionPool;
+import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamQuestionPoolId;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.AiInterviewRequestRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.AttemptQuestionRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamAttemptRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamCandidateRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamQuestionPoolRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.repository.InterviewTurnRepository;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewAiClient;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewStateStore;
+import com.example.swd392_se1907_aives.modules.identity.internal.domain.entity.User;
+import com.example.swd392_se1907_aives.modules.identity.internal.repository.UserRepository;
+import com.example.swd392_se1907_aives.modules.identity.internal.service.JwtService;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.Course;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.CourseEnrollment;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.CourseEnrollmentId;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.Question;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.Rubric;
+import com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.RubricCriterion;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.CourseEnrollmentRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.CourseRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.QuestionRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.RubricCriterionRepository;
+import com.example.swd392_se1907_aives.modules.teaching.internal.repository.RubricRepository;
+
+
 import com.fasterxml.jackson.databind.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,6 +1,8 @@
 package com.example.swd392_se1907_aives;
 
-import com.example.swd392_se1907_aives.config.LocalEnvLoader;
+import com.example.swd392_se1907_aives.bootstrap.configuration.LocalEnvLoader;
+
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 

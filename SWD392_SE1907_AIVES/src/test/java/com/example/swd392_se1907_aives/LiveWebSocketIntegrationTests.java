@@ -1,6 +1,10 @@
 package com.example.swd392_se1907_aives;
 
-import com.example.swd392_se1907_aives.service.*;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewAiClient;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewStateStore;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.LiveTranscriptionTickets;
+
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

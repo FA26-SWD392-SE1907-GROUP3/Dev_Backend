@@ -1,4 +1,8 @@
 package com.example.swd392_se1907_aives.service;
+
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewStateStore;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.LiveTranscriptionTickets;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.OffsetDateTime;

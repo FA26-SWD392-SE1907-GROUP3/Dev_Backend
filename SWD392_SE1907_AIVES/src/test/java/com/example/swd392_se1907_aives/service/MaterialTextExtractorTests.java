@@ -1,5 +1,9 @@
 package com.example.swd392_se1907_aives.service;
 
+import com.example.swd392_se1907_aives.modules.teaching.internal.service.MaterialService;
+import com.example.swd392_se1907_aives.modules.teaching.internal.service.MaterialTextExtractor;
+
+
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.font.*;
 import org.junit.jupiter.api.Test;
