@@ -1,50 +1,31 @@
 package com.example.swd392_se1907_aives.domain.entity;
-
-import com.example.swd392_se1907_aives.domain.enums.UserStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 import lombok.*;
-
-import java.time.LocalDateTime;
-
+import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 @Entity
-@Table(name = "Users")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-class User {
-
+@DynamicInsert
+@Table(name="users")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class User {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "UserID")
-    private Integer userId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "RoleID", nullable = false)
-    private Role role;
-
-    @Column(name = "Username", nullable = false, unique = true, length = 50)
-    private String username;
-
-    @Column(name = "PasswordHash", nullable = false, length = 255)
-    private String passwordHash;
-
-    @Column(name = "FullName", nullable = false, length = 100)
+    @GeneratedValue(strategy=GenerationType.UUID)
+    @Column(name="id", nullable=false)
+    private UUID id;
+    @Column(name="full_name", nullable=false, length=150)
     private String fullName;
-
-    @Column(name = "Email", nullable = false, unique = true, length = 100)
+    @Column(name="email", nullable=false, length=255)
     private String email;
-
-    @Column(name = "CreatedAt")
-    private LocalDateTime createdAt;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "user_status", nullable = false)
-    UserStatus userStatus = UserStatus.ACTIVE;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
+    @Column(name="password_hash", nullable=false)
+    private String passwordHash;
+    @Column(name="role", nullable=false, length=20)
+    private String role;
+    @Column(name="is_active", nullable=false)
+    private Boolean isActive;
+    @Column(name="created_at", nullable=false)
+    private OffsetDateTime createdAt;
+    @Column(name="updated_at", nullable=false)
+    private OffsetDateTime updatedAt;
 }
