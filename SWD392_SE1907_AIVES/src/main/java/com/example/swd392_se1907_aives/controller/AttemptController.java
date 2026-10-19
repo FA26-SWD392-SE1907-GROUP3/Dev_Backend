@@ -38,7 +38,7 @@ public class AttemptController {
             throw new ResponseStatusException(HttpStatus.CONFLICT,"Kỳ thi chưa được kích hoạt hoặc hiện không nằm trong khung giờ thi của bạn. Hãy kiểm tra lịch thi và liên hệ giảng viên.");
         if(!Set.of("REGISTERED","READY").contains(c.getStatus())) throw new ResponseStatusException(HttpStatus.CONFLICT,"Candidate already started or unavailable");
         if(attempts.existsByCandidateId(candidateId)) throw new ResponseStatusException(HttpStatus.CONFLICT,"Attempt already exists");
-        List<ExamQuestionPool> eligible=pool.findAll().stream().filter(p->p.getId().getExamId().equals(e.getId()))
+        List<ExamQuestionPool> eligible=pool.findByIdExamId(e.getId()).stream()
             .filter(p->questions.findById(p.getId().getQuestionId()).map(q->"APPROVED".equals(q.getStatus())).orElse(false)).toList();
         if(eligible.size()<e.getMainQuestionCount())throw new ResponseStatusException(HttpStatus.CONFLICT,"Exam question pool is insufficient");
         var recent=attempts.findTop20ByExamIdOrderByStartedAtDesc(e.getId());Set<UUID> previous=new HashSet<>();Map<UUID,Integer> usage=new HashMap<>();

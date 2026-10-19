@@ -19,7 +19,8 @@ public class ExamController {
     private final CourseEnrollmentRepository enrollments;private final CourseAccessService access;
     private final UserRepository users;
     private final CourseRepository courses;
-    public record ExamCreate(@NotNull UUID courseId,@NotBlank String title,@Min(1) @Max(100) int mainQuestionCount,
+    private final CourseLecturerRepository lecturers;
+    public record ExamCreate(@NotNull UUID courseId,@NotBlank @Size(max=200) String title,@Min(1) @Max(100) int mainQuestionCount,
         @Min(0) @Max(10) Integer maxFollowupsPerQuestion,@Min(15) @Max(600) Integer answerTimeLimitSeconds,
         @Min(0) @Max(100) Integer maxFollowupsPerStudent,@Pattern(regexp="RANDOM|ADAPTIVE") String selectionMode){}
     public record ExamView(UUID id,UUID courseId,String title,String status,String selectionMode,int mainQuestionCount,int maxFollowupsPerQuestion,int answerTimeLimitSeconds,int maxFollowupsPerStudent){}
@@ -71,8 +72,9 @@ public class ExamController {
     }
     @GetMapping @PreAuthorize("hasRole('LECTURER')")
     public List<ExamView> list(){
-        return exams.findAll().stream()
-            .filter(e -> { try {access.requireTeacher(e.getCourseId());return true;} catch (org.springframework.web.server.ResponseStatusException x) {return false;} })
+        var courseIds=lecturers.findByIdLecturerId(access.current().getId()).stream().map(link->link.getId().getCourseId()).toList();
+        if(courseIds.isEmpty())return List.of();
+        return exams.findByCourseIdIn(courseIds).stream()
             .sorted(Comparator.comparing(Exam::getTitle, String.CASE_INSENSITIVE_ORDER))
             .map(ExamController::view).toList();
     }

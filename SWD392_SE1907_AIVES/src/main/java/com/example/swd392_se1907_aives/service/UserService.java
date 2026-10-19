@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
+import java.time.OffsetDateTime;
 @Service @RequiredArgsConstructor
 public class UserService {
     private final UserRepository users;
@@ -27,6 +28,7 @@ public class UserService {
         User u=new User(); u.setFullName(req.getFullName().trim());u.setEmail(email);
         u.setRole(req.getRole().name());u.setIsActive(true);
         u.setPasswordHash(encoder.encode(req.getPassword()));
+        var now=OffsetDateTime.now();u.setCreatedAt(now);u.setUpdatedAt(now);
         return mapper.toUserResponse(users.saveAndFlush(u));
     }
     @Transactional public UserResponse updateUser(UUID id, UserUpdateRequest req){
@@ -41,7 +43,7 @@ public class UserService {
             if(!"ADMIN".equals(actor.getRole())) throw new AccessDeniedException("Only admin can change roles");
             u.setRole(req.getRole().name());
         }
-        return mapper.toUserResponse(users.save(u));
+        u.setUpdatedAt(OffsetDateTime.now());return mapper.toUserResponse(users.save(u));
     }
     @Transactional public UserResponse updateUserPassword(UUID id, UserPasswordChangeRequest req){
         User actor=(User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -51,11 +53,11 @@ public class UserService {
         if(!encoder.matches(req.getOldPassword(),u.getPasswordHash())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Old password incorrect");
         if(!req.getNewPassword().equals(req.getConfirmPassword())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Passwords do not match");
         if(encoder.matches(req.getNewPassword(),u.getPasswordHash()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"New password equals old password");
-        u.setPasswordHash(encoder.encode(req.getNewPassword())); return mapper.toUserResponse(users.save(u));
+        u.setPasswordHash(encoder.encode(req.getNewPassword()));u.setUpdatedAt(OffsetDateTime.now());return mapper.toUserResponse(users.save(u));
     }
     @Transactional public UserResponse setActive(UUID id,boolean active){
         User actor=(User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if(!active && actor.getId().equals(id))throw new ResponseStatusException(HttpStatus.CONFLICT,"Không thể xóa hoặc khóa tài khoản đang đăng nhập.");
-        var u=get(id);u.setIsActive(active);return mapper.toUserResponse(users.save(u));
+        var u=get(id);u.setIsActive(active);u.setUpdatedAt(OffsetDateTime.now());return mapper.toUserResponse(users.save(u));
     }
 }

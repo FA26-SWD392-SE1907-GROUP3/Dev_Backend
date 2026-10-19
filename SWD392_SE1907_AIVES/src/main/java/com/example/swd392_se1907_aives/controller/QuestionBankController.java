@@ -33,7 +33,7 @@ public class QuestionBankController {
     }
     @GetMapping("/courses/{courseId}/rubrics") @PreAuthorize("hasRole('LECTURER')")
     public List<RubricView> rubrics(@PathVariable UUID courseId){access.requireTeacher(courseId);
-        return rubrics.findAll().stream().filter(r->courseId.equals(r.getCourseId())).map(this::view).toList();}
+        return rubrics.findByCourseId(courseId).stream().map(this::view).toList();}
     private RubricView view(Rubric r){return new RubricView(r.getId(),r.getCourseId(),r.getName(),r.getMaxScore(),r.getStatus(),r.getDescription());}
     @PutMapping("/rubrics/{id}") @PreAuthorize("hasRole('LECTURER')") @Transactional
     public RubricView updateRubric(@PathVariable("id") UUID id,@Valid @RequestBody RubricRequest req){

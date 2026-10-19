@@ -95,6 +95,37 @@ class ExamMonitorTests {
     @Test void missingApiReturns404InsteadOfMaskingTheProblemAs500()throws Exception{
         mvc.perform(get("/api/v1/nonexistent-monitor-api").header("Authorization",token(teacher))).andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Khởi động lại backend")));
     }
+    @Test void unsupportedMethodAndBodyFormatKeepTheirClientErrorStatus()throws Exception{
+        mvc.perform(patch("/api/v1/courses/"+course.getId()+"/students").header("Authorization",token(admin)))
+            .andExpect(status().isMethodNotAllowed()).andExpect(header().string("Allow",org.hamcrest.Matchers.containsString("POST")))
+            .andExpect(jsonPath("$.code").value(405));
+        mvc.perform(post("/api/v1/users").header("Authorization",token(admin)).contentType("text/plain").content("not-json"))
+            .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.code").value(415));
+        mvc.perform(get("/api/v1/courses").header("Authorization",token(admin)).accept("application/xml"))
+            .andExpect(status().isNotAcceptable()).andExpect(jsonPath("$.code").value(406));
+    }
+    @Test void accountEditsRejectBlankNamesAndEmailsAndKeepAuditTimes()throws Exception{
+        String url="/api/v1/users/"+student.getId(),originalName=student.getFullName(),originalEmail=student.getEmail();
+        mvc.perform(put(url).header("Authorization",token(admin)).contentType("application/json").content("{\"fullName\":\"   \"}")).andExpect(status().isBadRequest());
+        mvc.perform(put(url).header("Authorization",token(admin)).contentType("application/json").content("{\"email\":\"\"}")).andExpect(status().isBadRequest());
+        var unchanged=users.findById(student.getId()).orElseThrow();assertThat(unchanged.getFullName()).isEqualTo(originalName);assertThat(unchanged.getEmail()).isEqualTo(originalEmail);
+        var oldTime=OffsetDateTime.now().minusDays(1);unchanged.setUpdatedAt(oldTime);users.saveAndFlush(unchanged);
+        mvc.perform(put(url).header("Authorization",token(admin)).contentType("application/json").content("{\"fullName\":\"Updated student\"}")).andExpect(status().isOk());
+        assertThat(users.findById(student.getId()).orElseThrow().getUpdatedAt()).isAfter(oldTime);
+    }
+    @Test void accountCreationSetsRequiredAuditTimes()throws Exception{
+        String email=UUID.randomUUID()+"@example.com";
+        mvc.perform(post("/api/v1/users").header("Authorization",token(admin)).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("fullName","New student","email",email,"password","test-password-123","role","STUDENT")))).andExpect(status().isOk());
+        var created=users.findByEmailIgnoreCase(email).orElseThrow();assertThat(created.getCreatedAt()).isNotNull();assertThat(created.getUpdatedAt()).isNotNull();assertThat(created.getIsActive()).isTrue();
+    }
+    @Test void lecturerExamListContainsOnlyAssignedCourses()throws Exception{
+        mvc.perform(get("/api/v1/exams").header("Authorization",token(teacher))).andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id=='"+exam.getId()+"')]").isNotEmpty());
+        mvc.perform(get("/api/v1/exams").header("Authorization",token(user("LECTURER")))).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(post("/api/v1/exams").header("Authorization",token(teacher)).contentType("application/json")
+            .content(json.writeValueAsString(Map.of("courseId",course.getId(),"title","x".repeat(201),"mainQuestionCount",1)))).andExpect(status().isBadRequest());
+    }
     @Test void administratorEditsArchivesAndRestoresCoursesWithoutDeletingHistory()throws Exception{
         String url="/api/v1/courses/"+course.getId();
         String body=json.writeValueAsString(Map.of("code",course.getCode(),"name","Renamed course","description","Long description ".repeat(60)));

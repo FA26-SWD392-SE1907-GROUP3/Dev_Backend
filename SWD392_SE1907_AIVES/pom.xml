@@ -54,12 +54,6 @@
         <!-- Lombok -->
         <projectlombok-lombok.version>1.18.36</projectlombok-lombok.version>
 
-        <!-- MapStruct -->
-        <mapstruct.version>1.6.3</mapstruct.version>
-        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-
-        <!-- Spotless -->
-        <spotless.version>2.43.0</spotless.version>
 
     </properties>
 
@@ -169,24 +163,6 @@
 
 
         <!-- =====================================================
-             MAPSTRUCT
-             ===================================================== -->
-
-        <dependency>
-            <groupId>org.mapstruct</groupId>
-            <artifactId>mapstruct</artifactId>
-            <version>${mapstruct.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.mapstruct</groupId>
-            <artifactId>mapstruct-processor</artifactId>
-            <version>${mapstruct.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-
-        <!-- =====================================================
              TESTING
              ===================================================== -->
         <dependency>
@@ -290,43 +266,8 @@
                             </version>
                         </path>
 
-                        <!-- Lombok MapStruct Binding -->
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok-mapstruct-binding</artifactId>
-                            <version>
-                                ${lombok-mapstruct-binding.version}
-                            </version>
-                        </path>
-
-                        <!-- MapStruct -->
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>
-                                ${mapstruct.version}
-                            </version>
-                        </path>
-
                     </annotationProcessorPaths>
 
-
-                    <!-- MapStruct Configuration -->
-                    <compilerArgs>
-
-                        <arg>
-                            -Amapstruct.suppressGeneratorTimestamp=true
-                        </arg>
-
-                        <arg>
-                            -Amapstruct.defaultComponentModel=spring
-                        </arg>
-
-                        <arg>
-                            -Amapstruct.verbose=true
-                        </arg>
-
-                    </compilerArgs>
 
                 </configuration>
 

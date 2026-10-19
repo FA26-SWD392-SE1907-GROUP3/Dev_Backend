@@ -6,9 +6,25 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.ErrorResponse;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 @RestControllerAdvice
 @lombok.extern.slf4j.Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class,HttpMediaTypeNotSupportedException.class,HttpMediaTypeNotAcceptableException.class})
+    public ResponseEntity<ApiResponse<String>> unsupportedRequest(Exception exception) {
+        ErrorResponse error=(ErrorResponse)exception;
+        String message=switch(error.getStatusCode().value()) {
+            case 405 -> "Phương thức HTTP không được hỗ trợ cho API này.";
+            case 415 -> "Định dạng dữ liệu gửi lên không được hỗ trợ.";
+            default -> "Định dạng phản hồi yêu cầu không được hỗ trợ.";
+        };
+        return ResponseEntity.status(error.getStatusCode()).headers(error.getHeaders())
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(ApiResponse.<String>builder().code(error.getStatusCode().value()).message(message).build());
+    }
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<String>> missingResource(Exception e){return reply(HttpStatus.NOT_FOUND,"Không tìm thấy API hoặc tài nguyên. Khởi động lại backend nếu vừa cập nhật mã nguồn.");}
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
