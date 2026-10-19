@@ -1,0 +1,456 @@
+// AIVES - AI-powered Viva Exam System
+// DBML visualization for https://dbdiagram.io
+// Source: AIVES_Database_Neon.zip / 01_schema.sql (PostgreSQL 16+)
+// Primary keys, foreign keys (including composite FKs), and major unique indexes are mapped.
+// Validation CHECK, partial/GIN indexes, triggers, and extensions remain defined in 01_schema.sql.
+
+Project AIVES {
+  database_type: 'PostgreSQL'
+  Note: 'Modules 1-3: question bank and rubrics; exam scheduling; AI viva interviews. DBML is an ERD, not a replacement for the complete PostgreSQL DDL.'
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  full_name varchar(150) [not null]
+  email varchar(255) [not null, unique]
+  password_hash text [not null]
+  role varchar(20) [not null, note: 'ADMIN, LECTURER, STUDENT']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  Note: 'System accounts with role-based access (Admin, Lecturer, Student).'
+}
+
+Table courses {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(30) [not null, unique]
+  name varchar(200) [not null]
+  description text
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  Note: 'Courses / subjects of the AI Viva system.'
+}
+
+Table course_lecturers {
+  course_id uuid [not null]
+  lecturer_id uuid [not null]
+  assigned_at timestamptz [not null, default: `now()`]
+  indexes {
+    (course_id, lecturer_id) [pk]
+    lecturer_id [name: 'idx_courses_lecturer']
+  }
+  Note: 'Lecturers assigned to each course.'
+}
+
+Table course_enrollments {
+  course_id uuid [not null]
+  student_id uuid [not null]
+  enrollment_status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE or DROPPED']
+  enrolled_at timestamptz [not null, default: `now()`]
+  indexes {
+    (course_id, student_id) [pk]
+    student_id [name: 'idx_enrollments_student']
+  }
+  Note: 'Student registration in courses.'
+}
+
+Table course_topics {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  name varchar(150) [not null]
+  slug varchar(160) [not null]
+  description text
+  indexes {
+    (course_id, slug) [unique]
+    (id, course_id) [unique]
+    course_id [name: 'idx_topics_course']
+  }
+  Note: 'Course question-bank categories.'
+}
+
+Table course_materials {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  uploaded_by uuid [not null]
+  original_filename varchar(255) [not null]
+  object_key text [not null, note: 'File path in S3 / object storage; not binary data']
+  mime_type varchar(100) [not null]
+  file_sha256 char(64)
+  extraction_status varchar(20) [not null, default: 'UPLOADED', note: 'UPLOADED, PROCESSING, READY, FAILED']
+  extracted_text_object_key text
+  uploaded_at timestamptz [not null, default: `now()`]
+  indexes {
+    (id, course_id) [unique]
+    (course_id, extraction_status) [name: 'idx_materials_course']
+  }
+  Note: 'Uploaded learning documents; file bodies live in object storage.'
+}
+
+Table material_chunks {
+  id uuid [pk, default: `gen_random_uuid()`]
+  material_id uuid [not null]
+  chunk_index integer [not null]
+  content text [not null]
+  token_count integer
+  page_number integer
+  external_vector_id varchar(255) [note: 'Optional ID when using an external vector database']
+  created_at timestamptz [not null, default: `now()`]
+  indexes {
+    (material_id, chunk_index) [unique]
+    (material_id, chunk_index) [name: 'idx_chunks_material']
+  }
+  Note: 'Extracted text fragments for question generation / RAG.'
+}
+
+Table question_generation_jobs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  requested_by uuid [not null]
+  instruction text
+  desired_count integer [not null]
+  target_bloom_level varchar(20) [note: 'REMEMBER, UNDERSTAND, APPLY, ANALYZE']
+  model_name varchar(120)
+  status varchar(20) [not null, default: 'QUEUED', note: 'QUEUED, RUNNING, COMPLETED, FAILED']
+  generated_count integer [not null, default: 0]
+  error_message text
+  created_at timestamptz [not null, default: `now()`]
+  completed_at timestamptz
+  indexes {
+    (id, course_id) [unique]
+    (course_id, status) [name: 'idx_generation_jobs_course']
+  }
+  Note: 'Requests to generate questions with AI.'
+}
+
+Table question_generation_materials {
+  job_id uuid [not null]
+  material_id uuid [not null]
+  course_id uuid [not null]
+  indexes {
+    (job_id, material_id) [pk]
+  }
+  Note: 'Which materials are inputs to each AI job.'
+}
+
+Table rubrics {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  created_by uuid [not null]
+  name varchar(180) [not null]
+  description text
+  max_score numeric(6,2) [not null]
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT, PUBLISHED, ARCHIVED']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  indexes {
+    (id, course_id) [unique]
+  }
+  Note: 'Scoring rubric definitions (not student scores).'
+}
+
+Table rubric_criteria {
+  id uuid [pk, default: `gen_random_uuid()`]
+  rubric_id uuid [not null]
+  criterion_name varchar(180) [not null]
+  description text
+  max_points numeric(6,2) [not null]
+  sort_order integer [not null]
+  indexes {
+    (rubric_id, sort_order) [unique]
+  }
+  Note: 'Scoring criteria of each rubric.'
+}
+
+Table question_import_batches {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  imported_by uuid [not null]
+  original_filename varchar(255) [not null]
+  status varchar(20) [not null, default: 'PROCESSING', note: 'PROCESSING, COMPLETED, FAILED']
+  total_rows integer [not null, default: 0]
+  imported_rows integer [not null, default: 0]
+  error_details jsonb [not null, default: `'[]'::jsonb`]
+  imported_at timestamptz [not null, default: `now()`]
+  indexes {
+    (id, course_id) [unique]
+  }
+  Note: 'Import jobs for question CSV/Excel.'
+}
+
+Table questions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  topic_id uuid
+  rubric_id uuid
+  created_by uuid [not null]
+  content text [not null]
+  reference_answer text
+  bloom_level varchar(20) [not null, note: 'REMEMBER, UNDERSTAND, APPLY, ANALYZE']
+  difficulty varchar(15) [not null, default: 'MEDIUM', note: 'EASY, MEDIUM, HARD']
+  source_type varchar(15) [not null, note: 'MANUAL, IMPORTED, AI']
+  generation_job_id uuid
+  import_batch_id uuid
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT, PENDING_REVIEW, APPROVED, REJECTED, ARCHIVED']
+  approved_by uuid
+  approved_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  indexes {
+    (id, course_id) [unique]
+    (course_id, status, bloom_level, difficulty) [name: 'idx_questions_catalog']
+    topic_id [name: 'idx_questions_topic']
+  }
+  Note: 'Teacher, imported, or AI-generated questions; with approval workflow.'
+}
+
+Table question_reviews {
+  id uuid [pk, default: `gen_random_uuid()`]
+  question_id uuid [not null]
+  reviewer_id uuid [not null]
+  decision varchar(20) [not null, note: 'APPROVE, REJECT, REQUEST_CHANGES']
+  comment text
+  reviewed_at timestamptz [not null, default: `now()`]
+  indexes {
+    (question_id, reviewed_at) [name: 'idx_reviews_question']
+  }
+  Note: 'Lecturer reviews and approvals of questions.'
+}
+
+Table question_source_chunks {
+  question_id uuid [not null]
+  chunk_id uuid [not null]
+  relevance_score numeric(5,4)
+  indexes {
+    (question_id, chunk_id) [pk]
+  }
+  Note: 'Evidence chunk links for an AI-generated question.'
+}
+
+Table exams {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null]
+  created_by uuid [not null]
+  title varchar(200) [not null]
+  instructions text
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT, SCHEDULED, ACTIVE, CLOSED, CANCELLED']
+  selection_mode varchar(15) [not null, default: 'RANDOM', note: 'RANDOM or ADAPTIVE']
+  main_question_count integer [not null]
+  max_followups_per_question integer [not null, default: 2]
+  answer_time_limit_seconds integer [not null, default: 120]
+  slot_duration_minutes integer [not null, default: 20]
+  exam_language varchar(5) [not null, default: 'vi']
+  exam_timezone varchar(80) [not null, default: 'Asia/Ho_Chi_Minh']
+  starts_at timestamptz
+  ends_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  indexes {
+    (id, course_id) [unique]
+    (course_id, status) [name: 'idx_exam_course_status']
+  }
+  Note: 'Exam configuration, timing, and question-selection policy.'
+}
+
+Table exam_question_pool {
+  exam_id uuid [not null]
+  question_id uuid [not null]
+  course_id uuid [not null]
+  selection_weight integer [not null, default: 1]
+  added_at timestamptz [not null, default: `now()`]
+  indexes {
+    (exam_id, question_id) [pk]
+  }
+  Note: 'Eligible questions selected for an exam.'
+}
+
+Table exam_candidates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  exam_id uuid [not null]
+  course_id uuid [not null]
+  student_id uuid [not null]
+  scheduled_start timestamptz [not null]
+  scheduled_end timestamptz [not null]
+  status varchar(20) [not null, default: 'REGISTERED', note: 'REGISTERED, READY, IN_PROGRESS, COMPLETED, ABSENT, CANCELLED']
+  created_at timestamptz [not null, default: `now()`]
+  indexes {
+    (exam_id, student_id) [unique]
+    (id, exam_id) [unique]
+    (student_id, scheduled_start) [name: 'idx_exam_candidates_student']
+    (exam_id, scheduled_start) [name: 'idx_exam_candidates_slots']
+  }
+  Note: 'Candidates and their reserved examination slots.'
+}
+
+Table exam_attempts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  candidate_id uuid [not null]
+  exam_id uuid [not null]
+  attempt_no integer [not null, default: 1]
+  status varchar(20) [not null, default: 'READY', note: 'READY, IN_PROGRESS, COMPLETED, ABORTED']
+  started_at timestamptz
+  ended_at timestamptz
+  last_activity_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  indexes {
+    (candidate_id, attempt_no) [unique]
+    (id, exam_id) [unique]
+    (exam_id, status) [name: 'idx_attempts_exam']
+  }
+  Note: 'A student exam attempt / session.'
+}
+
+Table attempt_questions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  attempt_id uuid [not null]
+  exam_id uuid [not null]
+  question_id uuid [not null]
+  sequence_no integer [not null]
+  question_text_snapshot text [not null, note: 'Immutable snapshot of the question when assigned']
+  selection_mode varchar(15) [not null, note: 'RANDOM, ADAPTIVE, MANUAL']
+  selection_reason text
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, ASKING, ANSWERING, FINISHED, TIMED_OUT']
+  started_at timestamptz
+  completed_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  indexes {
+    (attempt_id, sequence_no) [unique]
+    (attempt_id, question_id) [unique]
+    (exam_id, question_id, created_at) [name: 'idx_attempt_questions_history']
+  }
+  Note: 'Main questions assigned in a specific exam attempt.'
+}
+
+Table interview_turns {
+  id uuid [pk, default: `gen_random_uuid()`]
+  attempt_question_id uuid [not null]
+  turn_no integer [not null]
+  speaker varchar(10) [not null, note: 'AI or STUDENT']
+  kind varchar(25) [not null, note: 'MAIN_QUESTION, MAIN_ANSWER, FOLLOWUP_QUESTION, FOLLOWUP_ANSWER, SYSTEM_NOTE']
+  followup_number integer [not null, default: 0]
+  reply_to_turn_id uuid
+  text_content text
+  audio_object_key text [note: 'Storage key for audio recording (S3 / object storage)']
+  speech_status varchar(20) [not null, default: 'NONE', note: 'NONE, QUEUED, PROCESSING, SUCCEEDED, FAILED']
+  stt_confidence numeric(5,4)
+  ai_model_name varchar(120)
+  followup_reason text
+  response_deadline_at timestamptz
+  started_at timestamptz
+  ended_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  indexes {
+    (attempt_question_id, turn_no) [unique]
+    (attempt_question_id, turn_no) [name: 'idx_turns_timeline']
+  }
+  Note: 'Ordered main/followup questions and student speech-to-text answers.'
+}
+
+Table ai_interview_requests {
+  id uuid [pk, default: `gen_random_uuid()`]
+  attempt_question_id uuid [not null]
+  input_turn_id uuid
+  output_turn_id uuid
+  request_type varchar(25) [not null, note: 'FOLLOWUP_GENERATION, STT, TTS']
+  provider varchar(80)
+  model_name varchar(120)
+  status varchar(20) [not null, default: 'QUEUED', note: 'QUEUED, RUNNING, SUCCEEDED, FAILED']
+  latency_ms integer
+  input_tokens integer
+  output_tokens integer
+  parameters jsonb [not null, default: `'{}'::jsonb`]
+  error_message text
+  requested_at timestamptz [not null, default: `now()`]
+  finished_at timestamptz
+  indexes {
+    (attempt_question_id, requested_at) [name: 'idx_ai_requests_attempt']
+  }
+  Note: 'AI/STT/TTS call metadata, latency, and errors.'
+}
+
+
+// TABLE GROUPS make the 22-table diagram easier to navigate.
+TableGroup Shared_Foundations [color: #64748B] {
+  users
+  courses
+  course_lecturers
+  course_enrollments
+}
+
+TableGroup M1_Question_Bank_Rubric [color: #15803D] {
+  course_topics
+  course_materials
+  material_chunks
+  question_generation_jobs
+  question_generation_materials
+  rubrics
+  rubric_criteria
+  question_import_batches
+  questions
+  question_reviews
+  question_source_chunks
+}
+
+TableGroup M2_Exams_Scheduling [color: #2563EB] {
+  exams
+  exam_question_pool
+  exam_candidates
+  exam_attempts
+  attempt_questions
+}
+
+TableGroup M3_AI_Viva [color: #9333EA] {
+  interview_turns
+  ai_interview_requests
+}
+
+
+// ===== SHARED =====
+Ref: course_lecturers.course_id > courses.id [delete: cascade]
+Ref: course_lecturers.lecturer_id > users.id [delete: restrict]
+Ref: course_enrollments.course_id > courses.id [delete: cascade]
+Ref: course_enrollments.student_id > users.id [delete: restrict]
+
+// ===== MODULE 1 =====
+Ref: course_topics.course_id > courses.id [delete: cascade]
+Ref: course_materials.course_id > courses.id [delete: cascade]
+Ref: course_materials.uploaded_by > users.id [delete: restrict]
+Ref: material_chunks.material_id > course_materials.id [delete: cascade]
+Ref: question_generation_jobs.course_id > courses.id [delete: cascade]
+Ref: question_generation_jobs.requested_by > users.id [delete: restrict]
+Ref: question_generation_materials.(job_id, course_id) > question_generation_jobs.(id, course_id) [delete: cascade]
+Ref: question_generation_materials.(material_id, course_id) > course_materials.(id, course_id) [delete: cascade]
+Ref: rubrics.course_id > courses.id [delete: cascade]
+Ref: rubrics.created_by > users.id [delete: restrict]
+Ref: rubric_criteria.rubric_id > rubrics.id [delete: cascade]
+Ref: question_import_batches.course_id > courses.id [delete: cascade]
+Ref: question_import_batches.imported_by > users.id [delete: restrict]
+Ref: questions.course_id > courses.id [delete: cascade]
+Ref: questions.created_by > users.id [delete: restrict]
+Ref: questions.approved_by > users.id [delete: restrict]
+Ref: questions.(topic_id, course_id) > course_topics.(id, course_id) [delete: restrict]
+Ref: questions.(rubric_id, course_id) > rubrics.(id, course_id) [delete: restrict]
+Ref: questions.(generation_job_id, course_id) > question_generation_jobs.(id, course_id) [delete: restrict]
+Ref: questions.(import_batch_id, course_id) > question_import_batches.(id, course_id) [delete: restrict]
+Ref: question_reviews.question_id > questions.id [delete: cascade]
+Ref: question_reviews.reviewer_id > users.id [delete: restrict]
+Ref: question_source_chunks.question_id > questions.id [delete: cascade]
+Ref: question_source_chunks.chunk_id > material_chunks.id [delete: restrict]
+
+// ===== MODULE 2 =====
+Ref: exams.course_id > courses.id [delete: cascade]
+Ref: exams.created_by > users.id [delete: restrict]
+Ref: exam_question_pool.(exam_id, course_id) > exams.(id, course_id) [delete: cascade]
+Ref: exam_question_pool.(question_id, course_id) > questions.(id, course_id) [delete: restrict]
+Ref: exam_candidates.student_id > users.id [delete: restrict]
+Ref: exam_candidates.(exam_id, course_id) > exams.(id, course_id) [delete: cascade]
+Ref: exam_candidates.(course_id, student_id) > course_enrollments.(course_id, student_id) [delete: restrict]
+Ref: exam_attempts.(candidate_id, exam_id) > exam_candidates.(id, exam_id) [delete: cascade]
+Ref: attempt_questions.(attempt_id, exam_id) > exam_attempts.(id, exam_id) [delete: cascade]
+Ref: attempt_questions.(exam_id, question_id) > exam_question_pool.(exam_id, question_id) [delete: restrict]
+
+// ===== MODULE 3 =====
+Ref: interview_turns.attempt_question_id > attempt_questions.id [delete: cascade]
+Ref: interview_turns.reply_to_turn_id > interview_turns.id [delete: set null]
+Ref: ai_interview_requests.attempt_question_id > attempt_questions.id [delete: cascade]
+Ref: ai_interview_requests.input_turn_id > interview_turns.id [delete: set null]
+Ref: ai_interview_requests.output_turn_id > interview_turns.id [delete: set null]

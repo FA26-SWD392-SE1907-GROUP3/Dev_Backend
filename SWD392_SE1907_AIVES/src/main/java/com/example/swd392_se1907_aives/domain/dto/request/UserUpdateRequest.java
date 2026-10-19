@@ -1,37 +1,9 @@
 package com.example.swd392_se1907_aives.domain.dto.request;
-
-import com.example.swd392_se1907_aives.domain.enums.RoleName;
-import com.example.swd392_se1907_aives.domain.enums.UserStatus;
-
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.experimental.FieldDefaults;
-
-@Builder
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@FieldDefaults(level = lombok.AccessLevel.PRIVATE)
+import jakarta.validation.constraints.*;
+import lombok.*;
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class UserUpdateRequest {
-    @Size(min = 3, max = 50, message = "INVALID_USERNAME_LENGTH")
-    String username;
-
-    @Email(message = "INVALID_EMAIL_FORMAT")
-    String email;
-
-    @Size(min = 8, message = "INVALID_PASSWORD_LENGTH")
-    String password;
-
-    String coverImage;
-
-    RoleName role;
-
-    UserStatus userStatus;
+    @Size(max=150) private String fullName;
+    @Email @Size(max=255) private String email;
+    private com.example.swd392_se1907_aives.domain.enums.RoleName role;
 }
-

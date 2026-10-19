@@ -68,6 +68,15 @@
          DEPENDENCIES
          ========================================================= -->
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.8</version>
+        </dependency>
 
 
         <!-- =====================================================
@@ -115,12 +124,10 @@
         </dependency>
 
 
-        <!-- =====================================================
-             MICROSOFT SQL SERVER
-             ===================================================== -->
+        <!-- Neon is PostgreSQL; SQL Server driver removed -->
         <dependency>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 

@@ -46,7 +46,7 @@ public class ExamSchedule {
     @PrePersist
     protected void onCreate() {
         if (this.status == null) {
-            this.status = ScheduleStatus.NOT_STARTED;
+            this.status = ScheduleStatus.REGISTERED;
         }
     }
 }

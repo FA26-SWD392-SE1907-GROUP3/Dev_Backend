@@ -27,7 +27,7 @@ public class InterviewLog {
     @JoinColumn(name = "question_id", nullable = true)
     private Question question;
 
-    @Column(name = "question_content", nullable = false, columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "question_content", nullable = false, columnDefinition = "TEXT")
     private String questionContent;
 
     @Enumerated(EnumType.STRING)
@@ -37,7 +37,7 @@ public class InterviewLog {
     @Column(name = "question_audio_url", length = 500)
     private String questionAudioUrl;
 
-    @Column(name = "student_answer_transcript", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "student_answer_transcript", columnDefinition = "TEXT")
     private String studentAnswerTranscript;
 
     @Column(name = "answer_audio_url", length = 500)

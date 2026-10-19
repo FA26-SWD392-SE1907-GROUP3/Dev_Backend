@@ -1,61 +1,58 @@
 package com.example.swd392_se1907_aives.domain.entity;
-
-import com.example.swd392_se1907_aives.domain.enums.BloomLevel;
-import com.example.swd392_se1907_aives.domain.enums.QuestionSource;
-import com.example.swd392_se1907_aives.domain.enums.QuestionStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicInsert;
 import lombok.*;
-import java.time.LocalDateTime;
-
+import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 @Entity
-@Table(name = "questions")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@DynamicInsert
+@Table(name="questions")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Question {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "question_id")
-    private Integer questionId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "subject_id", nullable = false)
-    private Subject subject;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "document_id", nullable = true)
-    private SubjectDocument document;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", nullable = false)
-    private User createdBy;
-
-    @Column(name = "topic", length = 150)
-    private String topic;
-
-    @Column(name = "question_content", nullable = false, columnDefinition = "NVARCHAR(MAX)")
-    private String questionContent;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "bloom_level", nullable = false, length = 50)
-    private BloomLevel bloomLevel;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "source", nullable = false, length = 50)
-    private QuestionSource source;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 50)
-    private QuestionStatus status;
-
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
+    @GeneratedValue(strategy=GenerationType.UUID)
+    @Column(name="id", nullable=false)
+    private UUID id;
+    @Column(name="course_id", nullable=false)
+    private UUID courseId;
+    @Column(name="topic_id", nullable=true)
+    private UUID topicId;
+    @Column(name="rubric_id", nullable=true)
+    private UUID rubricId;
+    @Column(name="created_by", nullable=false)
+    private UUID createdBy;
+    @Column(name="content", nullable=false, columnDefinition="text")
+    private String content;
+    @Column(name="reference_answer", nullable=true, columnDefinition="text")
+    private String referenceAnswer;
+    @Column(name="bloom_level", nullable=false, length=20)
+    private String bloomLevel;
+    @Column(name="difficulty", nullable=false, length=15)
+    private String difficulty;
+    @Column(name="source_type", nullable=false, length=15)
+    private String sourceType;
+    @Column(name="generation_job_id", nullable=true)
+    private UUID generationJobId;
+    @Column(name="import_batch_id", nullable=true)
+    private UUID importBatchId;
+    @Column(name="status", nullable=false, length=20)
+    private String status;
+    @Column(name="approved_by", nullable=true)
+    private UUID approvedBy;
+    @Column(name="approved_at", nullable=true)
+    private OffsetDateTime approvedAt;
+    @Column(name="created_at", nullable=false)
+    private OffsetDateTime createdAt;
+    @Column(name="updated_at", nullable=false)
+    private OffsetDateTime updatedAt;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="course_id", insertable=false, updatable=false)
+    private Course courseIdRef;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="created_by", insertable=false, updatable=false)
+    private User createdByRef;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="approved_by", insertable=false, updatable=false)
+    private User approvedByRef;
 }

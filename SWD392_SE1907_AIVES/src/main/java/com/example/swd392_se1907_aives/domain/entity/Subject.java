@@ -23,6 +23,6 @@ public class Subject {
     @Column(name = "subject_name", nullable = false, length = 100)
     private String subjectName;
 
-    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 }

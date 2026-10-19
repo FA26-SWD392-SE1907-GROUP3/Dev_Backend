@@ -1,19 +1,8 @@
 package com.example.swd392_se1907_aives.domain.dto.request;
-
-import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.*;
 import lombok.*;
-import lombok.experimental.FieldDefaults;
-
-@Builder
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@FieldDefaults(level = lombok.AccessLevel.PRIVATE)
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class AuthRequest {
-
-    @Email(message = "INVALID_EMAIL_FORMAT")
-    String email;
-    String password;
+    @Email @NotBlank private String email;
+    @NotBlank private String password;
 }
-
