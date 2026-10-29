@@ -198,7 +198,7 @@ class ExamMonitorTests {
         String url="/api/v1/rubrics/"+r.path("id").asText();
         mvc.perform(put(url).header("Authorization",token(teacher)).contentType("application/json").content(body.replace("Editable rubric","Updated rubric"))).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Updated rubric"));
         mvc.perform(delete(url).header("Authorization",token(teacher))).andExpect(status().isOk());
-        mvc.perform(post("/api/v1/questions").header("Authorization",token(teacher)).contentType("application/json").content(json.writeValueAsString(Map.of("courseId",course.getId(),"rubricId",r.path("id").asText(),"content","Cannot attach an archived rubric","bloomLevel","UNDERSTAND","difficulty","MEDIUM")))).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/questions").header("Authorization",token(teacher)).contentType("application/json").content(json.writeValueAsString(Map.of("courseId",course.getId(),"content","Question does not depend on an archived exam rubric","difficulty","MEDIUM")))).andExpect(status().isOk());
         var created=json.readTree(mvc.perform(post("/api/v1/exams").header("Authorization",token(teacher)).contentType("application/json").content(json.writeValueAsString(Map.of("courseId",course.getId(),"title","Unused draft","mainQuestionCount",1)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         mvc.perform(delete("/api/v1/exams/"+created.path("id").asText()).header("Authorization",token(teacher))).andExpect(status().isOk());
         assertThat(exams.findById(UUID.fromString(created.path("id").asText()))).isEmpty();

@@ -5,10 +5,14 @@ import com.example.swd392_se1907_aives.modules.identity.internal.domain.dto.resp
 import com.example.swd392_se1907_aives.modules.identity.internal.service.AuthService;
 import com.example.swd392_se1907_aives.shared.web.ApiResponse;
 
-
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
@@ -18,8 +22,6 @@ public class AuthController {
 
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
-        return ApiResponse.<AuthResponse>builder()
-            .data(authService.authenticate(request))
-            .build();
+        return ApiResponse.<AuthResponse>builder().data(authService.authenticate(request)).build();
     }
 }

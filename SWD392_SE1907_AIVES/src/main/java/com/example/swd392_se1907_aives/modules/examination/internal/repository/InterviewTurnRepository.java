@@ -8,6 +8,7 @@ public interface InterviewTurnRepository extends JpaRepository<InterviewTurn, UU
 
 
     java.util.List<InterviewTurn> findByAttemptQuestionIdOrderByTurnNo(UUID attemptQuestionId);
+    java.util.List<InterviewTurn> findByAttemptQuestionIdInOrderByTurnNo(java.util.Collection<UUID> questionIds);
     long countByAttemptQuestionIdInAndKind(java.util.Collection<UUID> questionIds,String kind);
     interface Progress {
         UUID getAttemptQuestionId(); Integer getTurnNo(); String getSpeaker(); String getKind(); String getSpeechStatus();

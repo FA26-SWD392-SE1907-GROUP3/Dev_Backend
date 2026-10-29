@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ExamAttemptRepository extends JpaRepository<ExamAttempt, UUID> {
+    List<ExamAttempt> findTop10ByStatusAndGradingStatusOrderByEndedAtAsc(String status,String gradingStatus);
     boolean existsByExamId(UUID examId);
     boolean existsByCandidateIdAndStatus(UUID candidateId,String status);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
@@ -19,5 +20,6 @@ public interface ExamAttemptRepository extends JpaRepository<ExamAttempt, UUID> 
     java.util.Optional<ExamAttempt> findFirstByExamIdOrderByStartedAtDesc(UUID examId);
     List<ExamAttempt> findTop20ByExamIdOrderByStartedAtDesc(UUID examId);
     List<ExamAttempt> findByCandidateIdOrderByAttemptNoAsc(UUID candidateId);
+    List<ExamAttempt> findByCandidateIdInOrderByAttemptNoDesc(java.util.Collection<UUID> candidateIds);
     List<ExamAttempt> findByExamIdOrderByStartedAtDesc(UUID examId);
 }

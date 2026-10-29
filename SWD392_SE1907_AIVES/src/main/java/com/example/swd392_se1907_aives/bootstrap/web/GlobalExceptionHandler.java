@@ -2,6 +2,7 @@ package com.example.swd392_se1907_aives.bootstrap.web;
 
 import com.example.swd392_se1907_aives.shared.error.AppException;
 import com.example.swd392_se1907_aives.shared.web.ApiResponse;
+import com.example.swd392_se1907_aives.shared.web.DatabaseUnavailableResponse;
 
 import org.springframework.http.*;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,6 +17,14 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 @RestControllerAdvice
 @lombok.extern.slf4j.Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler({org.springframework.transaction.CannotCreateTransactionException.class,
+        org.springframework.transaction.TransactionTimedOutException.class,
+        org.springframework.dao.TransientDataAccessException.class,
+        org.springframework.dao.DataAccessResourceFailureException.class})
+    public ResponseEntity<ApiResponse<String>> databaseUnavailable(Exception exception) {
+        log.warn("Database temporarily unavailable ({})", exception.getClass().getSimpleName());
+        return DatabaseUnavailableResponse.response();
+    }
     @ExceptionHandler({HttpRequestMethodNotSupportedException.class,HttpMediaTypeNotSupportedException.class,HttpMediaTypeNotAcceptableException.class})
     public ResponseEntity<ApiResponse<String>> unsupportedRequest(Exception exception) {
         ErrorResponse error=(ErrorResponse)exception;

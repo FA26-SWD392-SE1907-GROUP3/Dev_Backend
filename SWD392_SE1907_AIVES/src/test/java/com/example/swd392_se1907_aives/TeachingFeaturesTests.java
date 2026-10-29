@@ -102,8 +102,7 @@ class TeachingFeaturesTests {
             .andExpect(status().isConflict());
     }
     @Test void documentsCanBeUploadedIndexedDownloadedAndUsedForReviewableAiQuestions() throws Exception {
-        String rubric=createRubric();addCriterion(rubric,10,1);
-        mvc.perform(patch("/api/v1/rubrics/"+rubric+"/publish").header("Authorization",token)).andExpect(status().isOk());
+        String rubric="unused";
         byte[] bytes=docx("Software architecture separates responsibilities between components.");
         String material=upload(bytes,"lecture.docx");
         mvc.perform(get("/api/v1/materials/"+material+"/download").header("Authorization",token)).andExpect(status().isOk()).andExpect(content().bytes(bytes));
@@ -112,7 +111,7 @@ class TeachingFeaturesTests {
         var records=chunks.findByMaterialIdOrderByChunkIndex(UUID.fromString(material));assertThat(records).hasSize(1);
         mvc.perform(get("/api/v1/materials/"+material+"/chunks").header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$[0].content").value("Software architecture separates responsibilities between components."));
         UUID chunkId=records.getFirst().getId();
-        when(ai.generate(anyString(),eq(2),eq("UNDERSTAND"),eq("MEDIUM"),any())).thenReturn(List.of(
+        when(ai.generate(anyString(),eq(2),eq("MEDIUM"),any())).thenReturn(List.of(
             new OpenAiQuestionClient.Draft("Phân chia trách nhiệm là gì?","Mỗi thành phần đảm nhận một trách nhiệm.",List.of(chunkId)),
             new OpenAiQuestionClient.Draft("Vì sao cần phân chia trách nhiệm?","Để tách biệt vai trò các thành phần.",List.of(chunkId))));
         JsonNode job=json.readTree(mvc.perform(post("/api/v1/courses/"+course.getId()+"/generation-jobs").header("Authorization",token)
@@ -168,7 +167,7 @@ class TeachingFeaturesTests {
         mvc.perform(patch("/api/v1/rubrics/"+rubric+"/publish").header("Authorization",token));
         String material=upload(docx("Architecture and components"),"valid.docx");
         mvc.perform(post("/api/v1/materials/"+material+"/index").header("Authorization",token));
-        when(ai.generate(anyString(),eq(1),anyString(),anyString(),any())).thenThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY,"OpenAI unavailable"));
+        when(ai.generate(anyString(),eq(1),anyString(),any())).thenThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY,"OpenAI unavailable"));
         mvc.perform(post("/api/v1/courses/"+course.getId()+"/generation-jobs").header("Authorization",token).contentType("application/json").content(generationBody(rubric,material,1)))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("FAILED")).andExpect(jsonPath("$.generatedCount").value(0));
         assertThat(questions.findByCourseId(course.getId())).isEmpty();
@@ -176,6 +175,20 @@ class TeachingFeaturesTests {
         var foreign=materials.findById(UUID.fromString(material)).orElseThrow();foreign.setCourseId(other.getId());materials.saveAndFlush(foreign);
         mvc.perform(post("/api/v1/courses/"+course.getId()+"/generation-jobs").header("Authorization",token).contentType("application/json").content(generationBody(rubric,material,1)))
             .andExpect(status().isBadRequest());
+    }
+    @Test void compatibilityMigrationIsRepeatableAndRemovesQuestionRubricRequirement()throws Exception {
+        database.execute("ALTER TABLE questions ADD COLUMN IF NOT EXISTS rubric_id UUID");
+        database.execute("ALTER TABLE questions ADD COLUMN IF NOT EXISTS bloom_level VARCHAR(20)");
+        database.execute("ALTER TABLE questions ADD CONSTRAINT ck_approved_question_has_rubric CHECK (status <> 'APPROVED' OR rubric_id IS NOT NULL)");
+        var script=new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(new org.springframework.core.io.ClassPathResource("db/migration/06_whole_attempt_rubric.sql"));
+        script.execute(java.util.Objects.requireNonNull(database.getDataSource()));
+        script.execute(java.util.Objects.requireNonNull(database.getDataSource()));
+        var request=json.writeValueAsString(Map.of("courseId",course.getId(),"content","Question after schema migration","difficulty","EASY"));
+        var created=json.readTree(mvc.perform(post("/api/v1/questions").header("Authorization",token).contentType("application/json").content(request))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.rubricId").doesNotExist()).andExpect(jsonPath("$.bloomLevel").doesNotExist())
+            .andReturn().getResponse().getContentAsString());
+        mvc.perform(patch("/api/v1/questions/"+created.path("id").asText()+"/review?approve=true").header("Authorization",token)).andExpect(status().isOk());
+        assertThat(database.queryForObject("SELECT COUNT(*) FROM questions WHERE id = CAST(? AS UUID) AND rubric_id IS NULL AND bloom_level IS NULL",Long.class,created.path("id").asText())).isEqualTo(1L);
     }
     private String upload(byte[] bytes,String filename) throws Exception {
         return json.readTree(mvc.perform(multipart("/api/v1/courses/"+course.getId()+"/materials").file(new MockMultipartFile("file",filename,MaterialService.DOCX,bytes)).header("Authorization",token))
@@ -191,7 +204,7 @@ class TeachingFeaturesTests {
             .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
     private String criterionBody(int points,int order) throws Exception {return json.writeValueAsString(Map.of("criterionName","Hiểu nội dung","description","Giải thích rõ","maxPoints",points,"sortOrder",order));}
-    private String generationBody(String rubric,String material,int count) throws Exception {return json.writeValueAsString(Map.of("rubricId",rubric,"materialIds",List.of(material),"desiredCount",count,"bloomLevel","UNDERSTAND","difficulty","MEDIUM","instruction",""));}
+    private String generationBody(String rubric,String material,int count) throws Exception {return json.writeValueAsString(Map.of("materialIds",List.of(material),"desiredCount",count,"difficulty","MEDIUM","instruction",""));}
     private User user(String role){var user=new User();user.setFullName("Test Teacher");user.setEmail(UUID.randomUUID()+"@example.com");user.setPasswordHash("unused");user.setRole(role);user.setIsActive(true);user.setCreatedAt(OffsetDateTime.now());user.setUpdatedAt(OffsetDateTime.now());return users.saveAndFlush(user);}
     private Course course(){var value=new Course();value.setCode("C"+UUID.randomUUID().toString().substring(0,8));value.setName("Test Course");value.setIsActive(true);value.setCreatedAt(OffsetDateTime.now());return courses.saveAndFlush(value);}
     private void assign(Course c,User u){var assignment=new CourseLecturer();assignment.setId(new CourseLecturerId(c.getId(),u.getId()));assignment.setAssignedAt(OffsetDateTime.now());lecturers.saveAndFlush(assignment);}

@@ -24,8 +24,8 @@ public class QuestionGenerationJob {
     private String instruction;
     @Column(name="desired_count", nullable=false)
     private Integer desiredCount;
-    @Column(name="target_bloom_level", nullable=true, length=20)
-    private String targetBloomLevel;
+    @Column(name="target_difficulty", length=15)
+    private String targetDifficulty;
     @Column(name="model_name", nullable=true, length=120)
     private String modelName;
     @Column(name="status", nullable=false, length=20)

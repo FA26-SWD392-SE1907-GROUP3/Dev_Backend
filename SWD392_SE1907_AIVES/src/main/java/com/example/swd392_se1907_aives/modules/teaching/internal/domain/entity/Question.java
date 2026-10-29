@@ -20,16 +20,12 @@ public class Question {
     private UUID courseId;
     @Column(name="topic_id", nullable=true)
     private UUID topicId;
-    @Column(name="rubric_id", nullable=true)
-    private UUID rubricId;
     @Column(name="created_by", nullable=false)
     private UUID createdBy;
     @Column(name="content", nullable=false, columnDefinition="text")
     private String content;
     @Column(name="reference_answer", nullable=true, columnDefinition="text")
     private String referenceAnswer;
-    @Column(name="bloom_level", nullable=false, length=20)
-    private String bloomLevel;
     @Column(name="difficulty", nullable=false, length=15)
     private String difficulty;
     @Column(name="source_type", nullable=false, length=15)

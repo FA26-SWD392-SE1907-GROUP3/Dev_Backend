@@ -32,4 +32,17 @@ public class ExamAttempt {
     private OffsetDateTime lastActivityAt;
     @Column(name="created_at", nullable=false)
     private OffsetDateTime createdAt;
+
+    @Column(name="rubric_snapshot", columnDefinition="TEXT")
+    private String rubricSnapshot;
+    @Column(name="grading_status", length=20)
+    private String gradingStatus;
+    @Column(name="grading_error", columnDefinition="TEXT")
+    private String gradingError;
+    @Column(name="grading_result", columnDefinition="TEXT")
+    private String gradingResult;
+    @Column(name="grading_requested_at")
+    private OffsetDateTime gradingRequestedAt;
+    @Column(name="graded_at")
+    private OffsetDateTime gradedAt;
 }

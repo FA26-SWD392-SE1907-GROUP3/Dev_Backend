@@ -18,6 +18,8 @@ public class Exam {
     private UUID id;
     @Column(name="course_id", nullable=false)
     private UUID courseId;
+    @Column(name="rubric_id")
+    private UUID rubricId;
     @Column(name="created_by", nullable=false)
     private UUID createdBy;
     @Column(name="title", nullable=false, length=200)

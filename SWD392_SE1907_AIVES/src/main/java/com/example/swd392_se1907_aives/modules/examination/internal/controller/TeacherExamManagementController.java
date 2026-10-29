@@ -1,92 +1,76 @@
 package com.example.swd392_se1907_aives.modules.examination.internal.controller;
 
-import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.Exam;
-import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamCandidate;
-import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamQuestionPoolId;
-import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamAttemptRepository;
-import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamCandidateRepository;
-import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamQuestionPoolRepository;
-import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamRepository;
-import com.example.swd392_se1907_aives.modules.identity.api.IdentityDirectory;
-import com.example.swd392_se1907_aives.modules.teaching.api.CourseAccessService;
-import com.example.swd392_se1907_aives.modules.teaching.api.CourseCatalog;
-import com.example.swd392_se1907_aives.modules.teaching.api.QuestionCatalog;
-
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.ExamDtos.ExamCreate;
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.ExamDtos.ExamView;
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.CandidateView;
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.PoolView;
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.Schedule;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.TeacherExamManagementService;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
-import java.time.OffsetDateTime;
-import java.util.*;
 
-@RestController @RequiredArgsConstructor @RequestMapping("/api/v1/exams") @PreAuthorize("hasRole('LECTURER')")
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/exams")
+@PreAuthorize("hasRole('LECTURER')")
 public class TeacherExamManagementController {
-    private final ExamRepository exams;private final CourseCatalog courses;private final CourseAccessService access;
-    private final ExamQuestionPoolRepository pool;private final QuestionCatalog questions;private final IdentityDirectory users;
-    private final ExamCandidateRepository candidates;private final ExamAttemptRepository attempts;
-    public record PoolView(UUID id,String content,String bloomLevel,String difficulty,String status){}
-    public record CandidateView(UUID id,UUID studentId,String fullName,String studentEmail,OffsetDateTime scheduledStart,OffsetDateTime scheduledEnd,String status){}
-    public record Schedule(@NotNull OffsetDateTime scheduledStart,@NotNull OffsetDateTime scheduledEnd){}
+    private final TeacherExamManagementService service;
+
     @GetMapping("/{id}/questions")
-    public List<PoolView> pool(@PathVariable UUID id){
-        Exam e=exam(id,false);return pool.findByIdExamId(id).stream().map(link->questions.findById(link.getId().getQuestionId()).orElseThrow())
-            .filter(q->e.getCourseId().equals(q.getCourseId())).map(q->new PoolView(q.getId(),q.getContent(),q.getBloomLevel(),q.getDifficulty(),q.getStatus())).toList();
+    public List<PoolView> pool(@PathVariable UUID id) {
+        return service.pool(id);
     }
-    @DeleteMapping("/{id}/questions/{questionId}") @Transactional
-    public void removeQuestion(@PathVariable UUID id,@PathVariable UUID questionId){
-        draft(exam(id,true));pool.deleteById(new ExamQuestionPoolId(id,questionId));
+
+    @DeleteMapping("/{id}/questions/{questionId}")
+    public void removeQuestion(@PathVariable UUID id, @PathVariable UUID questionId) {
+        service.removeQuestion(id, questionId);
     }
-    @PutMapping("/{id}") @Transactional
-    public ExamController.ExamView update(@PathVariable UUID id,@Valid @RequestBody ExamController.ExamCreate req){
-        Exam e=exam(id,true);draft(e);
-        if(!e.getCourseId().equals(req.courseId()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Không thể đổi môn học của kỳ thi đã tạo.");
-        e.setTitle(req.title());e.setMainQuestionCount(req.mainQuestionCount());e.setMaxFollowupsPerQuestion(req.maxFollowupsPerQuestion()==null?2:req.maxFollowupsPerQuestion());e.setMaxFollowupsPerStudent(req.maxFollowupsPerStudent()==null?Math.min(100,e.getMaxFollowupsPerQuestion()*req.mainQuestionCount()):req.maxFollowupsPerStudent());
-        e.setSelectionMode(req.selectionMode()==null?"RANDOM":req.selectionMode());e.setAnswerTimeLimitSeconds(req.answerTimeLimitSeconds()==null?120:req.answerTimeLimitSeconds());e.setUpdatedAt(OffsetDateTime.now());
-        exams.save(e);return ExamController.view(e);
+
+    @PutMapping("/{id}")
+    public ExamView update(@PathVariable UUID id, @Valid @RequestBody ExamCreate request) {
+        return service.update(id, request);
     }
+
     @GetMapping("/{id}/candidates")
-    public List<CandidateView> candidates(@PathVariable UUID id){
-        exam(id,false);return candidates.findByExamIdOrderByScheduledStartAsc(id).stream().map(this::view).toList();
+    public List<CandidateView> candidates(@PathVariable UUID id) {
+        return service.candidates(id);
     }
-    @PutMapping("/{id}/candidates/{candidateId}") @Transactional
-    public CandidateView reschedule(@PathVariable UUID id,@PathVariable UUID candidateId,@Valid @RequestBody Schedule req){
-        Exam e=exam(id,true);available(e);
-        if(!req.scheduledStart().isBefore(req.scheduledEnd()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Thời gian kết thúc phải sau thời gian bắt đầu.");
-        ExamCandidate c=editableCandidate(id,candidateId);c.setScheduledStart(req.scheduledStart());c.setScheduledEnd(req.scheduledEnd());return view(candidates.save(c));
+
+    @PutMapping("/{id}/candidates/{candidateId}")
+    public CandidateView reschedule(
+            @PathVariable UUID id,
+            @PathVariable UUID candidateId,
+            @Valid @RequestBody Schedule request) {
+        return service.reschedule(id, candidateId, request);
     }
-    @DeleteMapping("/{id}/candidates/{candidateId}") @Transactional
-    public void removeCandidate(@PathVariable UUID id,@PathVariable UUID candidateId){
-        available(exam(id,true));candidates.delete(editableCandidate(id,candidateId));
+
+    @DeleteMapping("/{id}/candidates/{candidateId}")
+    public void cancelCandidate(@PathVariable UUID id, @PathVariable UUID candidateId) {
+        service.cancelCandidate(id, candidateId);
     }
-    @DeleteMapping("/{id}") @Transactional
-    public void removeDraft(@PathVariable("id") UUID id){
-        Exam e=exam(id,true);draft(e);
-        if(attempts.existsByExamId(id))throw new ResponseStatusException(HttpStatus.CONFLICT,"Không xóa kỳ thi đã có lượt thi.");
-        pool.deleteAll(pool.findByIdExamId(id));candidates.deleteAll(candidates.findByExamIdOrderByScheduledStartAsc(id));exams.delete(e);
+
+    @DeleteMapping("/{id}")
+    public void removeDraft(@PathVariable("id") UUID id) {
+        service.removeDraft(id);
     }
-    @PatchMapping("/{id}/close") @Transactional
-    public ExamController.ExamView close(@PathVariable UUID id){
-        Exam e=exam(id,true);
-        if(!"ACTIVE".equals(e.getStatus()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Chỉ kết thúc kỳ thi đang mở.");
-        if(attempts.existsByExamIdAndStatus(id,"IN_PROGRESS"))throw new ResponseStatusException(HttpStatus.CONFLICT,"Còn sinh viên đang thi. Chỉ kết thúc kỳ thi sau khi các lượt thi hoàn tất.");
-        e.setStatus("CLOSED");e.setUpdatedAt(OffsetDateTime.now());exams.save(e);
-        return ExamController.view(e);
-    }
-    private ExamCandidate editableCandidate(UUID examId,UUID id){
-        ExamCandidate c=candidates.findLockedById(id).filter(x->examId.equals(x.getExamId())).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Không tìm thấy thí sinh trong kỳ thi."));
-        if(!Set.of("REGISTERED","READY").contains(c.getStatus())||attempts.existsByCandidateId(id))throw new ResponseStatusException(HttpStatus.CONFLICT,"Không thể sửa/xóa lịch của sinh viên đã bắt đầu thi.");
-        return c;
-    }
-    private CandidateView view(ExamCandidate c){var user=users.findById(c.getStudentId()).orElseThrow();return new CandidateView(c.getId(),user.getId(),user.getFullName(),user.getEmail(),c.getScheduledStart(),c.getScheduledEnd(),c.getStatus());}
-    private void available(Exam e){if(!Set.of("DRAFT","SCHEDULED","ACTIVE").contains(e.getStatus()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Kỳ thi đã kết thúc hoặc đã hủy.");}
-    private void draft(Exam e){if(!"DRAFT".equals(e.getStatus()))throw new ResponseStatusException(HttpStatus.CONFLICT,"Chỉ sửa đề thi khi kỳ thi còn nháp.");}
-    private Exam exam(UUID id,boolean lock){
-        UUID courseId=exams.findCourseIdById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Không tìm thấy kỳ thi."));access.requireTeacher(courseId);
-        if(lock){courses.findLockedById(courseId).orElseThrow();return exams.findLockedById(id).orElseThrow();}return exams.findById(id).orElseThrow();
+
+    @PatchMapping("/{id}/close")
+    public ExamView close(@PathVariable UUID id) {
+        return service.close(id);
     }
 }

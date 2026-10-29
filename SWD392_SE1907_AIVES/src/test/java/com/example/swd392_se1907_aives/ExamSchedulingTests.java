@@ -53,12 +53,14 @@ class ExamSchedulingTests {
     @Autowired QuestionRepository questions;@Autowired RubricRepository rubrics;@Autowired QuestionReviewRepository reviews;@Autowired ExamQuestionPoolRepository pool;
     @Autowired AttemptQuestionRepository assigned;
     @Autowired QuestionImportBatchRepository imports;
+    @Autowired com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewStateStore store;
     User student,teacher; Course course; Exam exam; String token;
     @BeforeEach void setup(){
         student=user("STUDENT");teacher=user("LECTURER");token=token(teacher);
         course=new Course();course.setCode("S"+UUID.randomUUID().toString().substring(0,8));course.setName("Scheduling");course.setIsActive(true);course.setCreatedAt(OffsetDateTime.now());course=courses.saveAndFlush(course);
         var lecturer=new CourseLecturer();lecturer.setId(new CourseLecturerId(course.getId(),teacher.getId()));lecturer.setAssignedAt(OffsetDateTime.now());lecturers.saveAndFlush(lecturer);
         exam=new Exam();exam.setCourseId(course.getId());exam.setCreatedBy(teacher.getId());exam.setTitle("Scheduling test");exam.setStatus("ACTIVE");exam.setSelectionMode("RANDOM");exam.setMainQuestionCount(1);exam.setMaxFollowupsPerQuestion(2);exam.setAnswerTimeLimitSeconds(120);exam.setSlotDurationMinutes(20);exam.setExamLanguage("vi");exam.setExamTimezone("Asia/Ho_Chi_Minh");exam.setCreatedAt(OffsetDateTime.now());exam.setUpdatedAt(OffsetDateTime.now());exam=exams.saveAndFlush(exam);
+        exam.setRubricId(rubric("PUBLISHED").getId());exams.saveAndFlush(exam);
         enrollment("ACTIVE");
     }
     @Test void administratorEnrollsStudentBeforeTeacherCanScheduleEvenWithLegacyEnrollmentFlag()throws Exception{
@@ -161,7 +163,7 @@ class ExamSchedulingTests {
     @Test void editingAnApprovedQuestionWithdrawsApprovalAndRemovesItFromDraftExams()throws Exception{
         exam.setStatus("DRAFT");exams.saveAndFlush(exam);Question question=question("APPROVED");
         mvc.perform(post("/api/v1/exams/"+exam.getId()+"/questions").header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("questionId",question.getId())))).andExpect(status().isOk());
-        mvc.perform(put("/api/v1/questions/"+question.getId()).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(questionBody(question.getRubricId(),"Nội dung mới phải duyệt lại"))))
+        mvc.perform(put("/api/v1/questions/"+question.getId()).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(questionBody(exam.getRubricId(),"Nội dung mới phải duyệt lại"))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
         assertThat(pool.findByIdExamId(exam.getId())).isEmpty();
         assertThat(questions.findById(question.getId()).orElseThrow().getApprovedBy()).isNull();
@@ -170,7 +172,7 @@ class ExamSchedulingTests {
     }
     @Test void teacherManagesExamSettingsPoolAndProtectsQuestionsWhenActivated()throws Exception{
         exam.setStatus("DRAFT");exams.saveAndFlush(exam);Question question=question("APPROVED");String url="/api/v1/exams/"+exam.getId();
-        mvc.perform(put(url).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("courseId",course.getId(),"title","Kỳ thi của giáo viên","mainQuestionCount",1,"maxFollowupsPerQuestion",3,"answerTimeLimitSeconds",90))))
+        mvc.perform(put(url).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("courseId",course.getId(),"title","Kỳ thi của giáo viên","rubricId",exam.getRubricId(),"mainQuestionCount",1,"maxFollowupsPerQuestion",3,"answerTimeLimitSeconds",90))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.maxFollowupsPerQuestion").value(3));
         mvc.perform(post(url+"/questions").header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("questionId",question.getId())))).andExpect(status().isOk());
         mvc.perform(get(url+"/questions").header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
@@ -178,29 +180,62 @@ class ExamSchedulingTests {
         mvc.perform(post(url+"/questions").header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("questionId",question.getId())))).andExpect(status().isOk());
         mvc.perform(patch(url+"/activate").header("Authorization",token)).andExpect(status().isOk());
         mvc.perform(delete("/api/v1/questions/"+question.getId()).header("Authorization",token)).andExpect(status().isConflict());
-        mvc.perform(put("/api/v1/questions/"+question.getId()).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(questionBody(question.getRubricId(),"Sửa khi thi")))).andExpect(status().isConflict());
+        mvc.perform(put("/api/v1/questions/"+question.getId()).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(questionBody(exam.getRubricId(),"Sửa khi thi")))).andExpect(status().isConflict());
         mvc.perform(delete(url+"/questions/"+question.getId()).header("Authorization",token)).andExpect(status().isConflict());
     }
-    @Test void teacherCanListRescheduleAndRemoveStudentsWithoutAdministrator()throws Exception{
+    @Test void teacherCanListRescheduleAndCancelStudentsWithoutAdministrator()throws Exception{
         String id=assign(token,student.getEmail(),true,200),url="/api/v1/exams/"+exam.getId()+"/candidates";
         mvc.perform(get(url).header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$[0].studentEmail").value(student.getEmail()));
         mvc.perform(get("/api/v1/courses/"+course.getId()+"/students").header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(student.getId().toString()));
         mvc.perform(put(url+"/"+id).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("scheduledStart",OffsetDateTime.now().plusHours(1).toString(),"scheduledEnd",OffsetDateTime.now().plusHours(2).toString())))).andExpect(status().isOk());
         mvc.perform(delete(url+"/"+id).header("Authorization",token)).andExpect(status().isOk());
-        assertThat(candidates.findById(UUID.fromString(id))).isEmpty();assertThat(enrollments.findById(enrollmentId())).isPresent();
+        assertThat(candidates.findById(UUID.fromString(id)).orElseThrow().getStatus()).isEqualTo("CANCELLED");assertThat(enrollments.findById(enrollmentId())).isPresent();
+        mvc.perform(get("/api/v1/student/exams").header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("VIEW"));
+        mvc.perform(get("/api/v1/student/exams/"+id+"/attempts").header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
     }
-    @Test void teacherCannotRemoveOrRescheduleAStudentWhoHasStarted()throws Exception{
+    @Test void teacherCanCancelButCannotRescheduleAnActiveAttemptAndHistoryIsRetained()throws Exception{
         Question question=question("APPROVED");var item=new ExamQuestionPool();item.setId(new ExamQuestionPoolId(exam.getId(),question.getId()));item.setCourseId(course.getId());item.setSelectionWeight(1);item.setAddedAt(OffsetDateTime.now());pool.saveAndFlush(item);
         String id=assign(token,student.getEmail(),true,200),url="/api/v1/exams/"+exam.getId()+"/candidates/"+id;
         mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isOk());
-        mvc.perform(delete(url).header("Authorization",token)).andExpect(status().isConflict());
         mvc.perform(put(url).header("Authorization",token).contentType("application/json").content(json.writeValueAsString(Map.of("scheduledStart",OffsetDateTime.now().plusHours(1).toString(),"scheduledEnd",OffsetDateTime.now().plusHours(2).toString())))).andExpect(status().isConflict());
-        assertThat(attempts.existsByCandidateId(UUID.fromString(id))).isTrue();
+        mvc.perform(delete(url).header("Authorization",token(user("LECTURER")))).andExpect(status().isForbidden());
+        mvc.perform(delete(url).header("Authorization",token(user("ADMIN")))).andExpect(status().isForbidden());
+        mvc.perform(delete(url).header("Authorization",token(student))).andExpect(status().isForbidden());
+        for(int i=0;i<2;i++)mvc.perform(delete(url).header("Authorization",token)).andExpect(status().isOk());
+        var history=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id));assertThat(history).hasSize(1);
+        assertThat(history.getFirst().getStatus()).isEqualTo("ABORTED");assertThat(history.getFirst().getEndedAt()).isNotNull();
+        assertThat(assigned.findByAttemptIdOrderBySequenceNo(history.getFirst().getId())).hasSize(1);
+        assertThat(candidates.findById(UUID.fromString(id)).orElseThrow().getStatus()).isEqualTo("CANCELLED");
+        mvc.perform(get("/api/v1/student/exams").header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("VIEW"));
+        mvc.perform(get("/api/v1/student/exams/"+id+"/attempts").header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$[0].status").value("ABORTED"));
+        String interview="/api/v1/interviews/"+history.getFirst().getId();
+        mvc.perform(get(interview).header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ABORTED")).andExpect(jsonPath("$.prompt").isEmpty());
+        String request=json.writeValueAsString(Map.of("promptId",UUID.randomUUID(),"text","Không được nộp sau khi hủy"));
+        mvc.perform(post(interview+"/answers").header("Authorization",token(student)).contentType("application/json").content(request)).andExpect(status().isConflict());
+        mvc.perform(get(interview+"/speech/"+UUID.randomUUID()).header("Authorization",token(student))).andExpect(status().isConflict());
+        mvc.perform(post(interview+"/timeout").header("Authorization",token(student)).contentType("application/json").content(json.writeValueAsString(Map.of("promptId",UUID.randomUUID())))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ABORTED"));
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isConflict());
     }
-    @Test void teacherMustPublishRubricBeforeApprovingQuestion()throws Exception{
-        Question question=question("PENDING_REVIEW");var rubric=rubrics.findById(question.getRubricId()).orElseThrow();rubric.setStatus("DRAFT");rubrics.saveAndFlush(rubric);
-        mvc.perform(patch("/api/v1/questions/"+question.getId()+"/review?approve=true").header("Authorization",token)).andExpect(status().isBadRequest());
-        assertThat(questions.findById(question.getId()).orElseThrow().getStatus()).isEqualTo("PENDING_REVIEW");
+    @Test void studentActionsSwitchFromStartToResumeToHistoryAndCompletedResultsCannotBeCancelled()throws Exception{
+        Question question=question("APPROVED");var item=new ExamQuestionPool();item.setId(new ExamQuestionPoolId(exam.getId(),question.getId()));item.setCourseId(course.getId());item.setSelectionWeight(1);item.setAddedAt(OffsetDateTime.now());pool.saveAndFlush(item);
+        String id=assign(token,student.getEmail(),true,200),studentToken=token(student),list="/api/v1/student/exams",history=list+"/"+id+"/attempts";
+        mvc.perform(get(list).header("Authorization",studentToken)).andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("START"));
+        mvc.perform(get(history).header("Authorization",studentToken)).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",studentToken)).andExpect(status().isOk());
+        var attempt=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        mvc.perform(get(list).header("Authorization",studentToken)).andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("RESUME")).andExpect(jsonPath("$[0].attemptId").value(attempt.getId().toString()));
+        mvc.perform(get(history).header("Authorization",studentToken)).andExpect(status().isConflict());
+        mvc.perform(get(history).header("Authorization",token(user("STUDENT")))).andExpect(status().isForbidden());
+        var candidate=candidates.findById(UUID.fromString(id)).orElseThrow();candidate.setScheduledEnd(OffsetDateTime.now().minusSeconds(1));candidates.saveAndFlush(candidate);store.advanceSystem(attempt.getId());
+        mvc.perform(get(list).header("Authorization",studentToken)).andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("VIEW")).andExpect(jsonPath("$[0].status").value("COMPLETED"));
+        mvc.perform(get(history).header("Authorization",studentToken)).andExpect(status().isOk()).andExpect(jsonPath("$[0].status").value("COMPLETED"));
+        mvc.perform(delete("/api/v1/exams/"+exam.getId()+"/candidates/"+id).header("Authorization",token)).andExpect(status().isConflict());
+        assertThat(attempts.findById(attempt.getId()).orElseThrow().getStatus()).isEqualTo("COMPLETED");
+    }
+    @Test void questionApprovalDoesNotRequireAPerQuestionRubric()throws Exception{
+        Question question=question("PENDING_REVIEW");
+        mvc.perform(patch("/api/v1/questions/"+question.getId()+"/review?approve=true").header("Authorization",token)).andExpect(status().isOk());
+        assertThat(questions.findById(question.getId()).orElseThrow().getStatus()).isEqualTo("APPROVED");
     }
     @Test void successiveStudentsGetDifferentQuestionsWhenPoolHasAlternatives()throws Exception{
         for(int i=0;i<2;i++){Question q=question("APPROVED");var item=new ExamQuestionPool();item.setId(new ExamQuestionPoolId(exam.getId(),q.getId()));item.setCourseId(course.getId());item.setSelectionWeight(1);item.setAddedAt(OffsetDateTime.now());pool.saveAndFlush(item);}
@@ -223,14 +258,14 @@ class ExamSchedulingTests {
     @Test void csvImportPreviewsBeforeWritingAndNeverAutoApproves()throws Exception{
         Rubric rubric=rubric("PUBLISHED");String csv="content,referenceAnswer,bloomLevel,difficulty\r\n\"Giải thích ví dụ, có hai phần\",Đáp án,Hiểu,MEDIUM\r\n";
         long before=imports.count();var preview=importFile(token,"q.csv",csv,rubric.getId(),true);
-        assertThat(preview.path("status").asText()).isEqualTo("READY");assertThat(preview.path("rows").get(0).path("bloomLevel").asText()).isEqualTo("UNDERSTAND");
+        assertThat(preview.path("status").asText()).isEqualTo("READY");assertThat(preview.path("rows").get(0).path("difficulty").asText()).isEqualTo("MEDIUM");
         assertThat(questions.findByCourseId(course.getId())).isEmpty();assertThat(imports.count()).isEqualTo(before);
         var saved=importFile(token,"q.csv",csv,rubric.getId(),false);assertThat(saved.path("importedRows").asInt()).isEqualTo(1);
         var imported=questions.findByCourseId(course.getId()).getFirst();assertThat(imported.getSourceType()).isEqualTo("IMPORTED");assertThat(imported.getStatus()).isEqualTo("PENDING_REVIEW");assertThat(imported.getApprovedBy()).isNull();assertThat(imported.getImportBatchId().toString()).isEqualTo(saved.path("batchId").asText());
         mvc.perform(patch("/api/v1/questions/"+imported.getId()+"/review?approve=true").header("Authorization",token)).andExpect(status().isOk());
     }
     @Test void invalidImportReportsRowErrorsAndDoesNotWritePartialQuestions()throws Exception{
-        Rubric rubric=rubric("PUBLISHED");String data=json.writeValueAsString(List.of(Map.of("content","Câu hợp lệ","bloomLevel","APPLY","difficulty","MEDIUM"),Map.of("content","Câu sai Bloom","bloomLevel","UNKNOWN","difficulty","EASY")));
+        Rubric rubric=rubric("PUBLISHED");String data=json.writeValueAsString(List.of(Map.of("content","Câu hợp lệ","difficulty","MEDIUM"),Map.of("content","Câu sai mức câu hỏi","difficulty","UNKNOWN")));
         var result=importFile(token,"q.json",data,rubric.getId(),false);assertThat(result.path("status").asText()).isEqualTo("FAILED");assertThat(result.path("importedRows").asInt()).isZero();assertThat(result.path("rows").get(1).path("errors").size()).isPositive();
         assertThat(questions.findByCourseId(course.getId())).isEmpty();assertThat(imports.findById(UUID.fromString(result.path("batchId").asText())).orElseThrow().getStatus()).isEqualTo("FAILED");
     }
@@ -243,9 +278,9 @@ class ExamSchedulingTests {
         String duplicate=json.writeValueAsString(List.of(Map.of("content","Trùng trong tệp","bloomLevel","APPLY","difficulty","EASY"),Map.of("content","  TRÙNG  TRONG TỆP  ","bloomLevel","APPLY","difficulty","EASY")));
         assertThat(importFile(token,"q.json",duplicate,rubric.getId(),true).path("status").asText()).isEqualTo("INVALID");
     }
-    @Test void importChecksTeacherPermissionsAndPublishedRubric()throws Exception{
+    @Test void importChecksTeacherPermissionsWithoutRequiringRubric()throws Exception{
         String data="[{\"content\":\"Câu mới\",\"bloomLevel\":\"REMEMBER\",\"difficulty\":\"EASY\"}]";Rubric draft=rubric("DRAFT");
-        assertThat(importFile(token,"q.json",data,draft.getId(),true).path("status").asText()).isEqualTo("INVALID");
+        assertThat(importFile(token,"q.json",data,null,true).path("status").asText()).isEqualTo("READY");
         for(User actor:List.of(student,user("ADMIN"),user("LECTURER")))mvc.perform(multipart("/api/v1/courses/"+course.getId()+"/question-imports").file(new org.springframework.mock.web.MockMultipartFile("file","q.json","application/json",data.getBytes(java.nio.charset.StandardCharsets.UTF_8))).header("Authorization",token(actor))).andExpect(status().isForbidden());
         assertThat(questions.findByCourseId(course.getId())).isEmpty();
     }
@@ -260,8 +295,8 @@ class ExamSchedulingTests {
         return json.readTree(mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
     private Rubric rubric(String status){var r=new Rubric();r.setCourseId(course.getId());r.setCreatedBy(teacher.getId());r.setName("Rubric giáo viên");r.setStatus(status);r.setMaxScore(java.math.BigDecimal.TEN);r.setCreatedAt(OffsetDateTime.now());r.setUpdatedAt(OffsetDateTime.now());return rubrics.saveAndFlush(r);}
-    private Map<String,Object> questionBody(UUID rubricId,String text){return Map.of("courseId",course.getId(),"rubricId",rubricId,"content",text,"referenceAnswer","Đáp án tham khảo","bloomLevel","UNDERSTAND","difficulty","MEDIUM");}
-    private Question question(String status){var q=new Question();q.setCourseId(course.getId());q.setRubricId(rubric("PUBLISHED").getId());q.setCreatedBy(teacher.getId());q.setContent("Câu hỏi của giáo viên");q.setReferenceAnswer("Đáp án");q.setBloomLevel("UNDERSTAND");q.setDifficulty("MEDIUM");q.setSourceType("MANUAL");q.setStatus(status);if(status.equals("APPROVED")){q.setApprovedBy(teacher.getId());q.setApprovedAt(OffsetDateTime.now());}q.setCreatedAt(OffsetDateTime.now());q.setUpdatedAt(OffsetDateTime.now());return questions.saveAndFlush(q);}
+    private Map<String,Object> questionBody(UUID rubricId,String text){return Map.of("courseId",course.getId(),"content",text,"referenceAnswer","Đáp án tham khảo","difficulty","MEDIUM");}
+    private Question question(String status){var q=new Question();q.setCourseId(course.getId());q.setCreatedBy(teacher.getId());q.setContent("Câu hỏi của giáo viên");q.setReferenceAnswer("Đáp án");q.setDifficulty("MEDIUM");q.setSourceType("MANUAL");q.setStatus(status);if(status.equals("APPROVED")){q.setApprovedBy(teacher.getId());q.setApprovedAt(OffsetDateTime.now());}q.setCreatedAt(OffsetDateTime.now());q.setUpdatedAt(OffsetDateTime.now());return questions.saveAndFlush(q);}
     private String assign(String auth,String email,boolean enroll,int status)throws Exception{
         var response=mvc.perform(post("/api/v1/exams/"+exam.getId()+"/candidates").header("Authorization",auth).contentType("application/json").content(json.writeValueAsString(body(email,enroll))))
             .andExpect(status().is(status)).andReturn().getResponse();

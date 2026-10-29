@@ -90,6 +90,7 @@ CREATE TABLE question_generation_jobs (
     target_bloom_level VARCHAR(20) CHECK (
         target_bloom_level IN ('REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE')
     ),
+    target_difficulty VARCHAR(15) CHECK (target_difficulty IN ('EASY','MEDIUM','HARD')),
     model_name VARCHAR(120),
     status VARCHAR(20) NOT NULL DEFAULT 'QUEUED'
         CHECK (status IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED')),
@@ -158,7 +159,7 @@ CREATE TABLE questions (
     created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     content TEXT NOT NULL CHECK (LENGTH(TRIM(content)) > 0),
     reference_answer TEXT,
-    bloom_level VARCHAR(20) NOT NULL CHECK (
+    bloom_level VARCHAR(20) CHECK (
         bloom_level IN ('REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE')
     ),
     difficulty VARCHAR(15) NOT NULL DEFAULT 'MEDIUM'
@@ -184,7 +185,6 @@ CREATE TABLE questions (
         REFERENCES question_import_batches(id, course_id) ON DELETE RESTRICT,
     CONSTRAINT ck_question_ai_has_job CHECK (source_type <> 'AI' OR generation_job_id IS NOT NULL),
     CONSTRAINT ck_question_import_has_batch CHECK (source_type <> 'IMPORTED' OR import_batch_id IS NOT NULL),
-    CONSTRAINT ck_approved_question_has_rubric CHECK (status <> 'APPROVED' OR rubric_id IS NOT NULL),
     CONSTRAINT ck_approved_question_has_approver CHECK (
         status <> 'APPROVED' OR (approved_by IS NOT NULL AND approved_at IS NOT NULL)
     )
@@ -212,6 +212,7 @@ CREATE TABLE question_source_chunks (
 CREATE TABLE exams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    rubric_id UUID REFERENCES rubrics(id) ON DELETE RESTRICT,
     created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     title VARCHAR(200) NOT NULL,
     instructions TEXT,
@@ -280,6 +281,12 @@ CREATE TABLE exam_attempts (
     started_at TIMESTAMPTZ,
     ended_at TIMESTAMPTZ,
     last_activity_at TIMESTAMPTZ,
+    rubric_snapshot TEXT,
+    grading_status VARCHAR(20),
+    grading_error TEXT,
+    grading_result TEXT,
+    grading_requested_at TIMESTAMPTZ,
+    graded_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (candidate_id, attempt_no),
     UNIQUE (id, exam_id),

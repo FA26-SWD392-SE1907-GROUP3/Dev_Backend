@@ -7,7 +7,9 @@ import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 class QuestionSetSelectorTests {
-    QuestionSetSelector selector=new QuestionSetSelector();
+    QuestionSetSelector selector=new QuestionSetSelector(List.of(
+            new com.example.swd392_se1907_aives.modules.examination.internal.service.impl.RandomQuestionSelectionImpl(),
+            new com.example.swd392_se1907_aives.modules.examination.internal.service.impl.AdaptiveQuestionSelectionImpl()));
     @Test void bothModesAvoidImmediateRepeatsAndNeverDuplicateWithinOneSet(){
         var list=List.of(q("REMEMBER","EASY"),q("UNDERSTAND","MEDIUM"),q("APPLY","HARD"),q("ANALYZE","HARD"));
         for(String mode:List.of("RANDOM","ADAPTIVE"))for(int i=0;i<20;i++){
@@ -22,11 +24,11 @@ class QuestionSetSelectorTests {
             assertThat(selected).hasSize(2).contains(list.get(2));assertThat(selected.stream().map(QuestionInfo::getId).distinct()).hasSize(2);
         }
     }
-    @Test void adaptivePrefersLessExposedQuestionsAndDiversifiesBloomOnTies(){
+    @Test void adaptivePrefersLessExposedQuestionsAndDiversifiesDifficultyOnTies(){
         var high=q("REMEMBER","EASY");var one=q("UNDERSTAND","MEDIUM");var two=q("APPLY","HARD");
         assertThat(selector.select(List.of(high,one,two),2,"ADAPTIVE",Set.of(),Map.of(high.getId(),9))).containsExactlyInAnyOrder(one,two);
         var same=q("UNDERSTAND","MEDIUM");
-        for(int i=0;i<20;i++)assertThat(selector.select(List.of(one,same,two),2,"ADAPTIVE",Set.of(),Map.of()).stream().map(QuestionInfo::getBloomLevel).distinct()).hasSize(2);
+        for(int i=0;i<20;i++)assertThat(selector.select(List.of(one,same,two),2,"ADAPTIVE",Set.of(),Map.of()).stream().map(QuestionInfo::getDifficulty).distinct()).hasSize(2);
     }
-    private QuestionInfo q(String bloom,String difficulty){return new QuestionInfo(UUID.randomUUID(),null,null,null,null,bloom,difficulty,null);}
+    private QuestionInfo q(String bloom,String difficulty){return new QuestionInfo(UUID.randomUUID(),null,null,null,difficulty,null);}
 }

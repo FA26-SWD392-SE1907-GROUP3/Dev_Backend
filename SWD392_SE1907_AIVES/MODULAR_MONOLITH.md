@@ -43,6 +43,12 @@ com.example.swd392_se1907_aives
 
 Entity, repository và service triển khai là chi tiết nội bộ của module. Module khác chỉ sử dụng package `api`; không chia sẻ UserRepository, CourseRepository, QuestionRepository hoặc ExamRepository. Account không chứa mật khẩu/hash. Các record trao đổi là dữ liệu bất biến, không phải entity JPA được quản lý.
 
+Trong mỗi module, luồng xử lý là **Controller → Service (interface) → ServiceImpl → Repository**. Controller nhận HTTP request, kiểm tra đầu vào và inject interface service qua constructor. Interface trong `internal/service` khai báo các ca sử dụng; lớp `@Service` trong `internal/service/impl` dùng `implements` để thực thi interface. Ví dụ: `QuestionController` inject `QuestionService`; `QuestionServiceImpl implements QuestionService` xử lý nghiệp vụ, quyền truy cập và persistence. Các hợp đồng công khai giữa module như `CourseCatalog`, `IdentityDirectory` vẫn nằm trong `api`, với implementation ở `internal/service/impl`.
+
+Transaction và khóa dữ liệu nằm tại lớp triển khai service. Controller không tham chiếu repository hoặc lớp triển khai; service không phụ thuộc ngược vào controller. Các DTO dùng chung giữa hai lớp nằm trong `internal/dto`, thay vì lồng trong controller hoặc service. Controller tạo HTTP response; service trả về dữ liệu nghiệp vụ. `ExamMapper` dùng chung phần ánh xạ cấu hình đề thi khi tạo/sửa; `QuestionClassification` tập trung ba mức câu hỏi Dễ, Trung bình, Khó cho câu hỏi thủ công và import.
+
+Quản lý câu hỏi, rubric và tiêu chí chấm điểm được tách thành các cặp `QuestionController` / `QuestionService`, `RubricController` / `RubricService` và `RubricCriterionController` / `RubricCriterionService`. Chi tiết và nguồn câu hỏi do `QuestionDetailController` / `QuestionDetailService` phụ trách. `QuestionBankController` cũ đã được thay thế. Theo nghiệp vụ mới, câu hỏi không nhận rubric/Bloom riêng; rubric được chọn ở kỳ thi và chụp một lần trên lượt thi để AI chấm toàn bài. Chi tiết thay đổi API và migration ở [WHOLE_ATTEMPT_GRADING.md](WHOLE_ATTEMPT_GRADING.md).
+
 Các liên kết ORM chéo module được thay bằng UUID trên những cột hiện có. Quan hệ ORM trong cùng module được giữ. Tên bảng, tên cột và schema SQL được giữ nguyên; các ràng buộc khóa ngoại hiện có ở DB không được xóa.
 
 Đã xóa package `compatibility` gồm các mapping Subject, SubjectDocument, ExamSession, ExamSchedule, InterviewLog và enum cũ vì không còn được nghiệp vụ hiện hành sử dụng. Các enum Teaching không còn tham chiếu và thư mục package ngang rỗng cũng đã được xóa. Việc dọn source không xóa bảng hay dữ liệu cũ trong database.
@@ -66,6 +72,10 @@ ModuleArchitectureTests đọc bytecode production bằng ASM có sẵn trong Sp
 4. Hợp đồng công khai chỉ gồm interface và immutable record; không lộ kiểu nội bộ qua chữ ký phương thức/constructor.
 5. Controller/repository và entity nằm trong module sở hữu; các package ngang `controller`, `service`, `repository`, `domain` cũ và `compatibility` không còn trong output của bản build mới.
 6. Một fixture bytecode cố tình gọi repository module khác xác nhận bộ đọc bắt được phụ thuộc trong thân phương thức.
+7. Controller không truy cập repository hoặc khai báo transaction; service không tham chiếu controller, kể cả DTO lồng trong controller.
+8. Các dependency được inject vào REST controller đều là interface service; mỗi interface service nội bộ có đúng một lớp `@Service` mang tên `ServiceImpl` trong package `impl`.
+
+Sau khi tách controller/service và loại bỏ `QuestionBankController`, bộ kiểm thử backend chạy thành công với **93 kiểm thử, không lỗi**, gồm năm kiểm thử kiến trúc. Báo cáo lần kiểm tra này nằm tại `target/layered-validation/surefire-reports`.
 
 Không cần đưa thêm framework để thực hiện Modular Monolith. Việc áp dụng Spring Modulith trong tương lai là lựa chọn công cụ riêng.
 

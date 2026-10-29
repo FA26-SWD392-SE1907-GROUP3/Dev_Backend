@@ -67,7 +67,10 @@ class InterviewFlowTests {
     @Autowired ExamQuestionPoolRepository pool;@Autowired AttemptQuestionRepository assigned;@Autowired InterviewTurnRepository turns;
     @Autowired ExamAttemptRepository attempts;@Autowired RubricRepository rubrics;@Autowired RubricCriterionRepository criteria;
     @Autowired InterviewStateStore store;@Autowired AiInterviewRequestRepository requests;
+    @Autowired jakarta.persistence.EntityManagerFactory entityManagerFactory;
     @MockitoBean InterviewAiClient ai;
+    @MockitoBean com.example.swd392_se1907_aives.modules.examination.internal.service.AttemptGradingAiClient gradingAi;
+    @Autowired com.example.swd392_se1907_aives.modules.examination.internal.service.AttemptGradingService grading;
     User student,teacher;Course course;Exam exam;ExamCandidate candidate;String token;
     @BeforeEach void setup(){
         student=user("STUDENT");teacher=user("LECTURER");token=token(student);
@@ -84,8 +87,8 @@ class InterviewFlowTests {
     @Test void asksAdaptiveFollowupAndFinishesWithoutLeakingReferenceAnswers()throws Exception{
         when(ai.followup(anyString())).thenReturn(new InterviewAiClient.Decision(true,"Vì sao tách trách nhiệm giúp dễ bảo trì?","Cần làm rõ lý do"),new InterviewAiClient.Decision(false,"","Đủ rõ"));
         String id=start();JsonNode state=state(id);String prompt=prompt(state);
-        var rubricSnapshot=json.readTree(assigned.findByAttemptIdOrderBySequenceNo(UUID.fromString(id)).getFirst().getRubricSnapshot());
-        assertThat(rubricSnapshot.path("maxScore").asInt()).isEqualTo(10);assertThat(rubricSnapshot.path("criteria").get(0).path("maxPoints").asInt()).isEqualTo(10);assertThat(rubricSnapshot.path("bloomLevel").asText()).isNotBlank();
+        var rubricSnapshot=json.readTree(attempts.findById(UUID.fromString(id)).orElseThrow().getRubricSnapshot());
+        assertThat(rubricSnapshot.path("maxScore").asInt()).isEqualTo(10);assertThat(rubricSnapshot.path("criteria").get(0).path("maxPoints").asInt()).isEqualTo(10);assertThat(assigned.findByAttemptIdOrderBySequenceNo(UUID.fromString(id)).getFirst().getRubricSnapshot()).isNull();
         assertThat(state.toString()).doesNotContain("PRIVATE-REFERENCE");assertThat(state.path("prompt").path("deadline").isNull()).isTrue();
         begin(id,prompt);JsonNode followup=answer(id,prompt,"Các thành phần cần tách biệt.",200);
         assertThat(followup.path("prompt").path("followupNumber").asInt()).isEqualTo(1);assertThat(followup.path("turns")).hasSize(3);
@@ -178,7 +181,9 @@ class InterviewFlowTests {
         var executor=Executors.newFixedThreadPool(2);
         try {
             var starts=executor.invokeAll(List.<Callable<org.springframework.test.web.servlet.MvcResult>>of(()->mvc.perform(post("/api/v1/attempts/start/"+candidate.getId()).header("Authorization",token)).andReturn(),()->mvc.perform(post("/api/v1/attempts/start/"+candidate.getId()).header("Authorization",token)).andReturn()));
-            var codes=List.of(starts.get(0).get().getResponse().getStatus(),starts.get(1).get().getResponse().getStatus());assertThat(codes).containsExactlyInAnyOrder(200,409);
+            var codes=List.of(starts.get(0).get().getResponse().getStatus(),starts.get(1).get().getResponse().getStatus());assertThat(codes).containsOnly(200);
+            assertThat(json.readTree(starts.get(0).get().getResponse().getContentAsString()).path("attemptId").asText()).isEqualTo(json.readTree(starts.get(1).get().getResponse().getContentAsString()).path("attemptId").asText());
+            assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(candidate.getId())).hasSize(1);
             String id=attempts.findByCandidateIdOrderByAttemptNoAsc(candidate.getId()).getFirst().getId().toString();String prompt=prompt(state(id));begin(id,prompt);
             var submissions=executor.invokeAll(List.of(()->postAnswer(id,prompt,"A"),()->postAnswer(id,prompt,"B")));
             assertThat(List.of(submissions.get(0).get(),submissions.get(1).get())).containsExactlyInAnyOrder(200,409);
@@ -192,6 +197,48 @@ class InterviewFlowTests {
         candidate.setScheduledEnd(OffsetDateTime.now().minusSeconds(1));candidates.saveAndFlush(candidate);store.advanceSystem(UUID.fromString(id));
         assertThat(state(id).path("status").asText()).isEqualTo("COMPLETED");
     }
+    @Test void retryingStartReturnsTheSameAttemptAndDoesNotResetTheAnswerDeadline()throws Exception{
+        String id=start(),prompt=prompt(state(id));begin(id,prompt);
+        var deadline=state(id).path("prompt").path("deadline").asText();
+        var startedAt=attempts.findById(UUID.fromString(id)).orElseThrow().getStartedAt();
+        assertThat(start()).isEqualTo(id);
+        assertThat(state(id).path("prompt").path("deadline").asText()).isEqualTo(deadline);
+        assertThat(attempts.findById(UUID.fromString(id)).orElseThrow().getStartedAt()).isEqualTo(startedAt);
+        assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(candidate.getId())).hasSize(1);
+    }
+    @Test void aLateAiFollowupCannotReopenAnAttemptCancelledWhileAiWasThinking()throws Exception{
+        String id=start(),prompt=prompt(state(id));begin(id,prompt);
+        when(ai.followup(anyString())).thenAnswer(invocation->{
+            var attempt=attempts.findById(UUID.fromString(id)).orElseThrow();attempt.setStatus("ABORTED");attempt.setEndedAt(OffsetDateTime.now());attempts.saveAndFlush(attempt);
+            var schedule=candidates.findById(candidate.getId()).orElseThrow();schedule.setStatus("CANCELLED");candidates.saveAndFlush(schedule);
+            return new InterviewAiClient.Decision(true,"Không được hỏi sau khi hủy lịch","Đã hủy");
+        });
+        var response=answer(id,prompt,"Câu trả lời được giữ lại.",200);
+        assertThat(response.path("status").asText()).isEqualTo("ABORTED");assertThat(response.path("prompt").isNull()).isTrue();
+        assertThat(response.path("turns")).hasSize(2);assertThat(response.path("followupsUsed").asInt()).isZero();
+    }
+    @Test void loadingTranscriptDoesNotAddOneDatabaseQueryPerCompletedQuestion()throws Exception{
+        var statistics=entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        boolean enabled=statistics.isStatisticsEnabled();statistics.setStatisticsEnabled(true);
+        try{
+            String id=start();state(id);statistics.clear();state(id);
+            long baseline=statistics.getPrepareStatementCount();
+            for(int i=2;i<=20;i++){
+                var question=new com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.AttemptQuestion();
+                question.setAttemptId(UUID.fromString(id));question.setExamId(exam.getId());question.setQuestionId(UUID.randomUUID());
+                question.setSequenceNo(i);question.setQuestionTextSnapshot("Historical question "+i);question.setSelectionMode("RANDOM");
+                question.setStatus("FINISHED");question.setCreatedAt(OffsetDateTime.now());question=assigned.saveAndFlush(question);
+                var turn=new com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.InterviewTurn();
+                turn.setAttemptQuestionId(question.getId());turn.setTurnNo(1);turn.setSpeaker("AI");turn.setKind("MAIN_QUESTION");
+                turn.setFollowupNumber(0);turn.setTextContent("Historical question "+i);turn.setSpeechStatus("NONE");turn.setCreatedAt(OffsetDateTime.now());turns.saveAndFlush(turn);
+            }
+            statistics.clear();var response=state(id);
+            assertThat(statistics.getPrepareStatementCount()).isLessThanOrEqualTo(baseline+1);
+            assertThat(response.path("turns")).hasSize(20);
+            assertThat(response.path("completedQuestions").asInt()).isEqualTo(19);
+            for(int i=0;i<20;i++)assertThat(response.path("turns").get(i).path("sequenceNo").asInt()).isEqualTo(i+1);
+        }finally{statistics.setStatisticsEnabled(enabled);}
+    }
     private int postAnswer(String id,String prompt,String text)throws Exception{return mvc.perform(post("/api/v1/interviews/"+id+"/answers").header("Authorization",token).contentType("application/json").content(body(Map.of("promptId",prompt,"text",text)))).andReturn().getResponse().getStatus();}
     private JsonNode answer(String id,String prompt,String text,int expected)throws Exception{return json.readTree(mvc.perform(post("/api/v1/interviews/"+id+"/answers").header("Authorization",token).contentType("application/json").content(body(Map.of("promptId",prompt,"text",text))))
         .andExpect(status().is(expected)).andReturn().getResponse().getContentAsString());}
@@ -201,12 +248,67 @@ class InterviewFlowTests {
     private String prompt(JsonNode state){return state.path("prompt").path("id").asText();}
     private String body(Object value)throws Exception{return json.writeValueAsString(value);}
     private String start()throws Exception{return json.readTree(mvc.perform(post("/api/v1/attempts/start/"+candidate.getId()).header("Authorization",token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("attemptId").asText();}
+    @Test void gradesAllQuestionsOnceAfterCompletionUsingTheAttemptRubric()throws Exception {
+        excludeEarlierGradingJobs();
+        addQuestion("Nêu ví dụ áp dụng nguyên tắc phân chia trách nhiệm?");
+        exam.setMainQuestionCount(2);exam.setMaxFollowupsPerQuestion(0);exam.setMaxFollowupsPerStudent(0);exams.saveAndFlush(exam);
+        String id=start();
+        grading.processPending();verifyNoInteractions(gradingAi);
+        var first=state(id);begin(id,prompt(first));
+        var second=answer(id,prompt(first),"EVIDENCE-FIRST-ANSWER",200);
+        grading.processPending();verifyNoInteractions(gradingAi);
+        begin(id,prompt(second));
+        var completed=answer(id,prompt(second),"EVIDENCE-SECOND-ANSWER",200);
+        assertThat(completed.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(attempts.findById(UUID.fromString(id)).orElseThrow().getGradingStatus()).isEqualTo("PENDING");
+        assertThat(assigned.findByAttemptIdOrderBySequenceNo(UUID.fromString(id))).allMatch(q->q.getRubricSnapshot()==null);
+        when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Đánh giá toàn bộ hai câu trả lời\",\"criteria\":[{\"sortOrder\":1,\"score\":8,\"feedback\":\"Lập luận tốt trên cả hai câu\"}]}"));
+        grading.processPending();
+        var evidence=org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(gradingAi).grade(evidence.capture());
+        var payload=json.readTree(evidence.getValue());
+        assertThat(payload.path("wholeAttempt")).hasSize(2);
+        assertThat(evidence.getValue()).contains("EVIDENCE-FIRST-ANSWER","EVIDENCE-SECOND-ANSWER","PRIVATE-REFERENCE");
+        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
+            .andExpect(jsonPath("$.result.totalScore").value(8)).andExpect(jsonPath("$.result.maxScore").value(10))
+            .andExpect(jsonPath("$.result.criteria.length()").value(1));
+        grading.processPending();verify(gradingAi,times(1)).grade(anyString());
+        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token(user("STUDENT")))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token(user("LECTURER")))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token)).andExpect(status().isConflict());
+    }
+
+    @Test void invalidAiGradeFailsWithoutPersistingPointsAndCanBeRetried()throws Exception {
+        excludeEarlierGradingJobs();
+        exam.setMaxFollowupsPerQuestion(0);exam.setMaxFollowupsPerStudent(0);exams.saveAndFlush(exam);
+        String id=start();var first=state(id);
+        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token)).andExpect(status().isConflict());
+        begin(id,prompt(first));answer(id,prompt(first),"Đáp án đã nộp",200);
+        when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Điểm sai\",\"criteria\":[{\"sortOrder\":1,\"score\":99,\"feedback\":\"Vượt thang điểm\"}]}"));
+        grading.processPending();
+        var attempt=attempts.findById(UUID.fromString(id)).orElseThrow();
+        assertThat(attempt.getGradingStatus()).isEqualTo("FAILED");assertThat(attempt.getGradingResult()).isNull();
+        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"));
+        when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Đã đánh giá toàn bài\",\"criteria\":[{\"sortOrder\":1,\"score\":7,\"feedback\":\"Đạt yêu cầu\"}]}"));
+        grading.processPending();
+        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.result.totalScore").value(7));
+    }
+
+    private void excludeEarlierGradingJobs() {
+        for(var previous:attempts.findAll())if("PENDING".equals(previous.getGradingStatus())) {
+            previous.setGradingStatus(null);attempts.saveAndFlush(previous);
+        }
+    }
     private String token(User u){return "Bearer "+jwt.generateToken(u.getId().toString(),u.getEmail(),u.getRole());}
     private User user(String role){var value=new User();value.setFullName("Viva tester");value.setEmail(UUID.randomUUID()+"@example.com");value.setPasswordHash("unused");value.setIsActive(true);value.setRole(role);value.setCreatedAt(OffsetDateTime.now());value.setUpdatedAt(OffsetDateTime.now());return users.saveAndFlush(value);}
     private void addQuestion(String content){
         var rubric=new Rubric();rubric.setCourseId(course.getId());rubric.setCreatedBy(teacher.getId());rubric.setName("Private rubric");rubric.setMaxScore(BigDecimal.TEN);rubric.setStatus("PUBLISHED");rubric.setCreatedAt(OffsetDateTime.now());rubric.setUpdatedAt(OffsetDateTime.now());rubric=rubrics.saveAndFlush(rubric);
+        exam.setRubricId(rubric.getId());exam=exams.saveAndFlush(exam);
         var criterion=new RubricCriterion();criterion.setRubricId(rubric.getId());criterion.setCriterionName("Giải thích");criterion.setMaxPoints(BigDecimal.TEN);criterion.setSortOrder(1);criteria.saveAndFlush(criterion);
-        var q=new Question();q.setCourseId(course.getId());q.setRubricId(rubric.getId());q.setCreatedBy(teacher.getId());q.setContent(content);q.setReferenceAnswer("PRIVATE-REFERENCE");q.setBloomLevel("UNDERSTAND");q.setDifficulty("MEDIUM");q.setSourceType("MANUAL");q.setStatus("APPROVED");q.setApprovedBy(teacher.getId());q.setApprovedAt(OffsetDateTime.now());q.setCreatedAt(OffsetDateTime.now());q.setUpdatedAt(OffsetDateTime.now());q=questions.saveAndFlush(q);
+        var q=new Question();q.setCourseId(course.getId());q.setCreatedBy(teacher.getId());q.setContent(content);q.setReferenceAnswer("PRIVATE-REFERENCE");q.setDifficulty("MEDIUM");q.setSourceType("MANUAL");q.setStatus("APPROVED");q.setApprovedBy(teacher.getId());q.setApprovedAt(OffsetDateTime.now());q.setCreatedAt(OffsetDateTime.now());q.setUpdatedAt(OffsetDateTime.now());q=questions.saveAndFlush(q);
         var item=new ExamQuestionPool();item.setId(new ExamQuestionPoolId(exam.getId(),q.getId()));item.setCourseId(course.getId());item.setSelectionWeight(1);item.setAddedAt(OffsetDateTime.now());pool.saveAndFlush(item);
     }
     static byte[] wav(){ByteBuffer b=ByteBuffer.allocate(4844).order(ByteOrder.LITTLE_ENDIAN);b.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(4836).put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16).putShort((short)1).putShort((short)1).putInt(24000).putInt(48000).putShort((short)2).putShort((short)16).put("data".getBytes(StandardCharsets.US_ASCII)).putInt(4800);return b.array();}
