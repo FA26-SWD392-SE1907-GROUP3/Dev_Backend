@@ -1,0 +1,28 @@
+### Login as demo lecturer (only after dev seed)
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{"email":"lecturer@aives.local","password":"Demo@123456"}
+
+### Copy JWT from login response manually (JetBrains HTTP Client variables)
+@token = PASTE_JWT_HERE
+@courseId = 20000000-0000-4000-8000-000000000001
+@rubricId = 50000000-0000-4000-8000-000000000001
+
+### List questions
+GET http://localhost:8080/api/v1/courses/{{courseId}}/questions
+Authorization: Bearer {{token}}
+
+### Create manual question
+POST http://localhost:8080/api/v1/questions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"courseId":"{{courseId}}","rubricId":"{{rubricId}}","content":"RESTful API có những ràng buộc nào?","referenceAnswer":"Client-server, stateless, cacheable...","bloomLevel":"UNDERSTAND","difficulty":"MEDIUM"}
+
+### Create exam
+POST http://localhost:8080/api/v1/exams
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"courseId":"{{courseId}}","title":"Thi vấn đáp SWD392","mainQuestionCount":2,"maxFollowupsPerQuestion":1}
