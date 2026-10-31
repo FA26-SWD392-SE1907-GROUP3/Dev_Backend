@@ -1,0 +1,72 @@
+# IntelliJ HTTP Client (or copy bodies to Postman).
+# 1. Replace @token after running login.
+# 2. Seed IDs below work only after database/02_seed.sql is imported.
+@base = http://localhost:8080/api/v1
+@token = REPLACE_JWT_FROM_LOGIN
+@course = 20000000-0000-4000-8000-000000000001
+@rubric = 50000000-0000-4000-8000-000000000001
+@question = 60000000-0000-4000-8000-000000000006
+@exam = 70000000-0000-4000-8000-000000000001
+
+### Lecturer login: response has accessToken
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email":"lecturer@aives.local","password":"Demo@123456"}
+
+### List my courses
+GET {{base}}/courses
+Authorization: Bearer {{token}}
+
+### Module 1: List rubric of course
+GET {{base}}/courses/{{course}}/rubrics
+Authorization: Bearer {{token}}
+
+### Module 1: List question bank
+GET {{base}}/courses/{{course}}/questions?status=PENDING_REVIEW
+Authorization: Bearer {{token}}
+
+### Module 1: Create draft manual question
+POST {{base}}/courses/{{course}}/questions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Giải thích sự khác biệt giữa REST và SOAP?",
+  "referenceAnswer": "REST là một kiểu kiến trúc, SOAP là một giao thức...",
+  "bloomLevel": "UNDERSTAND",
+  "difficulty": "MEDIUM",
+  "topicId": "30000000-0000-4000-8000-000000000001",
+  "rubricId": "50000000-0000-4000-8000-000000000001"
+}
+
+### Module 1: Review existing PENDING_REVIEW demo question
+POST {{base}}/courses/{{course}}/questions/{{question}}/review
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"decision":"APPROVE","comment":"Đạt yêu cầu."}
+
+### Module 2: List exams in course
+GET {{base}}/courses/{{course}}/exams
+Authorization: Bearer {{token}}
+
+### Module 2: Add question to a new DRAFT exam (not the seeded SCHEDULED exam)
+# POST {{base}}/exams/REPLACE_DRAFT_EXAM_ID/questions/60000000-0000-4000-8000-000000000001
+
+### Student login (use returned JWT for student routes)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email":"student1@aives.local","password":"Demo@123456"}
+
+### Module 2: My scheduled exams (requires STUDENT token)
+GET {{base}}/exams/me
+Authorization: Bearer {{token}}
+
+### Module 3: Existing transcript from demo completed attempt (requires STUDENT token)
+GET {{base}}/attempts/81000000-0000-4000-8000-000000000001/turns
+Authorization: Bearer {{token}}
+
+### Module 3: Start the demo scheduled exam (only works DURING your assigned slot)
+# POST {{base}}/exams/{{exam}}/attempts/start

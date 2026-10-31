@@ -1,0 +1,9 @@
+# Local configuration and secrets (keep example templates)
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Generated build output and uploaded/recorded runtime data
+**/target/
+**/storage/
