@@ -69,6 +69,7 @@ class InterviewFlowTests {
     @Autowired InterviewStateStore store;@Autowired AiInterviewRequestRepository requests;
     @Autowired jakarta.persistence.EntityManagerFactory entityManagerFactory;
     @MockitoBean InterviewAiClient ai;
+    @MockitoBean com.example.swd392_se1907_aives.modules.examination.internal.service.ConversationAiClient conversationAi;
     @MockitoBean com.example.swd392_se1907_aives.modules.examination.internal.service.AttemptGradingAiClient gradingAi;
     @Autowired com.example.swd392_se1907_aives.modules.examination.internal.service.AttemptGradingService grading;
     User student,teacher;Course course;Exam exam;ExamCandidate candidate;String token;
@@ -295,6 +296,131 @@ class InterviewFlowTests {
         grading.processPending();
         mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token))
             .andExpect(status().isOk()).andExpect(jsonPath("$.result.totalScore").value(7));
+    }
+
+    @Test void streamingUsesPriorAnswersAndRetriesAreIdempotent() throws Exception {
+        when(conversationAi.stream(anyString(), any())).thenAnswer(invocation -> {
+            java.util.function.Consumer<String> sink = invocation.getArgument(1);
+            sink.accept("Cảm ơn bạn. "); sink.accept("Bạn giải thích thêm vì sao?");
+            return new InterviewAiClient.Decision(true, "Cảm ơn bạn. Bạn giải thích thêm vì sao?", "Cần làm rõ");
+        });
+        String id = start(), first = prompt(state(id));
+        String response = stream(id, first, "FIRST-EVIDENCE");
+        assertThat(response).contains("event:saved", "event:delta", "event:complete", "Cảm ơn bạn.");
+        assertThat(response).doesNotContain("PRIVATE-REFERENCE");
+        var next = state(id);
+        assertThat(next.path("turns")).hasSize(3);
+        stream(id, first, "FIRST-EVIDENCE");
+        assertThat(state(id).path("turns")).hasSize(3);
+        verify(conversationAi, times(1)).stream(anyString(), any());
+        doReturn(new InterviewAiClient.Decision(false, "", "Đủ rõ")).when(conversationAi).stream(anyString(), any());
+        stream(id, prompt(next), "SECOND-EVIDENCE");
+        var contexts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(conversationAi, times(2)).stream(contexts.capture(), any());
+        assertThat(contexts.getAllValues().getLast()).contains("FIRST-EVIDENCE", "SECOND-EVIDENCE", "rubric");
+        assertThat(state(id).path("status").asText()).isEqualTo("COMPLETED");
+    }
+
+    @Test void streamingFailureKeepsAnswerAndSameRequestCanResume() throws Exception {
+        when(conversationAi.stream(anyString(), any())).thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI timeout"));
+        String id = start(), first = prompt(state(id));
+        assertThat(stream(id, first, "RETAINED-ANSWER")).contains("event:error", "AI timeout");
+        assertThat(state(id).path("needsContinuation").asBoolean()).isTrue();
+        assertThat(state(id).path("turns")).hasSize(2);
+        doReturn(new InterviewAiClient.Decision(false, "", "Đủ rõ")).when(conversationAi).stream(anyString(), any());
+        assertThat(stream(id, first, "RETAINED-ANSWER")).contains("event:complete");
+        assertThat(state(id).path("turns")).hasSize(2);
+        assertThat(state(id).path("status").asText()).isEqualTo("COMPLETED");
+    }
+
+    @Test void streamAndFinishRejectAnonymousOtherOwnersAndInvalidText() throws Exception {
+        String id = start(), first = prompt(state(id)), url = "/api/v1/interviews/" + id;
+        String payload = body(Map.of("promptId", first, "text", "answer"));
+        mvc.perform(post(url + "/turns/stream").contentType("application/json").content(payload)).andExpect(status().isUnauthorized());
+        mvc.perform(post(url + "/turns/stream").header("Authorization", token(user("STUDENT"))).contentType("application/json").content(payload)).andExpect(status().isForbidden());
+        for (String invalid : List.of(" ", "x".repeat(12001)))
+            mvc.perform(post(url + "/turns/stream").header("Authorization", token).contentType("application/json")
+                    .content(body(Map.of("promptId", first, "text", invalid)))).andExpect(status().isBadRequest());
+        mvc.perform(post(url + "/finish")).andExpect(status().isUnauthorized());
+        mvc.perform(post(url + "/finish").header("Authorization", token(user("STUDENT")))).andExpect(status().isForbidden());
+        assertThat(state(id).path("turns")).hasSize(1);
+        verifyNoInteractions(conversationAi);
+    }
+
+    @Test void finishPreservesTranscriptAndGradesExactlyOnceWithUnansweredQuestions() throws Exception {
+        excludeEarlierGradingJobs();
+        exam.setMainQuestionCount(2); exams.saveAndFlush(exam); addQuestion("Câu chưa trả lời?");
+        when(conversationAi.stream(anyString(), any())).thenReturn(new InterviewAiClient.Decision(false, "", "Đủ rõ"));
+        String id = start(); stream(id, prompt(state(id)), "FINISH-EVIDENCE");
+        for (int i = 0; i < 2; i++) mvc.perform(post("/api/v1/interviews/" + id + "/finish").header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        assertThat(state(id).toString()).contains("FINISH-EVIDENCE");
+        when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Đã chấm\",\"criteria\":[{\"sortOrder\":1,\"score\":6,\"feedback\":\"Còn thiếu ý\"}]}"));
+        grading.processPending(); grading.processPending();
+        verify(gradingAi, times(1)).grade(contains("FINISH-EVIDENCE"));
+        mvc.perform(get("/api/v1/attempts/" + id + "/grading").header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.totalScore").value(6));
+    }
+
+    @Test void contextIncludesEarlierMainQuestions() throws Exception {
+        exam.setMainQuestionCount(2); exams.saveAndFlush(exam); addQuestion("Câu chính thứ hai?");
+        when(conversationAi.stream(anyString(), any())).thenReturn(new InterviewAiClient.Decision(false, "", "Đủ rõ"));
+        String id = start(); stream(id, prompt(state(id)), "EARLIER-MAIN-ANSWER");
+        stream(id, prompt(state(id)), "CURRENT-MAIN-ANSWER");
+        var context = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(conversationAi, times(2)).stream(context.capture(), any());
+        assertThat(context.getAllValues().getLast()).contains("EARLIER-MAIN-ANSWER", "CURRENT-MAIN-ANSWER");
+    }
+
+    private String stream(String id, String prompt, String text) throws Exception {
+        var result = mvc.perform(post("/api/v1/interviews/" + id + "/turns/stream")
+                .header("Authorization", token).contentType("application/json")
+                .content(body(Map.of("promptId", prompt, "text", text))))
+                .andExpect(request().asyncStarted()).andReturn();
+        result.getAsyncResult(10000);
+        return mvc.perform(asyncDispatch(result)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    @Test void concurrentStreamRetryDoesNotCallAiOrAppendAnAnswerTwice() throws Exception {
+        var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+        when(conversationAi.stream(anyString(), any())).thenAnswer(invocation -> {
+            entered.countDown(); assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+            return new InterviewAiClient.Decision(false, "", "Đủ rõ");
+        });
+        String id = start(), first = prompt(state(id));
+        String payload = body(Map.of("promptId", first, "text", "CONCURRENT-EVIDENCE"));
+        var result = mvc.perform(post("/api/v1/interviews/" + id + "/turns/stream").header("Authorization", token)
+                .contentType("application/json").content(payload)).andExpect(request().asyncStarted()).andReturn();
+        try {
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+            mvc.perform(post("/api/v1/interviews/" + id + "/turns/stream").header("Authorization", token)
+                    .contentType("application/json").content(payload)).andExpect(status().isConflict());
+        } finally { release.countDown(); }
+        result.getAsyncResult(10000); mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+        assertThat(state(id).path("turns")).hasSize(2);
+        verify(conversationAi, times(1)).stream(anyString(), any());
+    }
+
+    @Test void finishingDuringStreamNeverReopensTheAttemptWhenAiReturnsLate() throws Exception {
+        var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+        when(conversationAi.stream(anyString(), any())).thenAnswer(invocation -> {
+            entered.countDown(); assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+            return new InterviewAiClient.Decision(true, "Vì sao câu này không được hỏi nữa?", "Late");
+        });
+        String id = start(), first = prompt(state(id));
+        var result = mvc.perform(post("/api/v1/interviews/" + id + "/turns/stream").header("Authorization", token)
+                .contentType("application/json").content(body(Map.of("promptId", first, "text", "KEPT-WHEN-FINISHING"))))
+                .andExpect(request().asyncStarted()).andReturn();
+        try {
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+            mvc.perform(post("/api/v1/interviews/" + id + "/finish").header("Authorization", token))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        } finally { release.countDown(); }
+        result.getAsyncResult(10000); mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+        var finished = state(id);
+        assertThat(finished.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(finished.path("turns")).hasSize(2);
+        assertThat(finished.toString()).contains("KEPT-WHEN-FINISHING").doesNotContain("Vì sao câu này không được hỏi nữa?");
     }
 
     private void excludeEarlierGradingJobs() {

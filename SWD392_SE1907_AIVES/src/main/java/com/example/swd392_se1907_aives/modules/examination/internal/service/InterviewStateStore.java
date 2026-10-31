@@ -66,6 +66,41 @@ public class InterviewStateStore {
 
     public record LivePermission(UUID studentId, UUID promptId, OffsetDateTime deadline) {}
 
+    /** The prompt ID is the idempotency key: a reconnect must never append a second answer. */
+    @Transactional
+    public AnswerPlan reserveConversationAnswer(UUID attemptId, UUID promptId, String text) {
+        Owned owned = load(attemptId, true);
+        var previous = turns.findFirstByReplyToTurnIdAndSpeaker(promptId, "STUDENT");
+        if (previous.isPresent()) {
+            var answer = previous.get();
+            if (owned.questions().stream().noneMatch(q -> q.getId().equals(answer.getAttemptQuestionId())))
+                throw missing("Không tìm thấy lượt hội thoại.");
+            if (!"SUCCEEDED".equals(answer.getSpeechStatus()) || !text.strip().equals(answer.getTextContent()))
+                throw conflict("Câu hỏi này đã nhận một câu trả lời khác. Hãy đồng bộ lượt thi.");
+            return new AnswerPlan(answer.getId(), answer.getAttemptQuestionId(), answer.getTextContent());
+        }
+        begin(attemptId, promptId);
+        return reserveAnswer(attemptId, promptId, text.strip(), false);
+    }
+
+    @Transactional
+    public State finishConversation(UUID attemptId) {
+        Owned owned = load(attemptId, true);
+        if (!"IN_PROGRESS".equals(owned.attempt().getStatus())) return view(owned);
+        // Preserve submitted evidence; unanswered questions are included as unanswered in grading.
+        for (var question : owned.questions()) {
+            if (terminal(question)) continue;
+            var latest = last(history(question));
+            if (latest != null && "AI".equals(latest.getSpeaker())) {
+                latest.setEndedAt(OffsetDateTime.now());
+                turns.save(latest);
+            }
+            finish(question, "FINISHED");
+        }
+        normalize(owned);
+        return view(owned);
+    }
+
     @Transactional
     public State state(UUID attemptId) {
         Owned owned = load(attemptId, true);
@@ -222,6 +257,8 @@ public class InterviewStateStore {
                                     question.getQuestionTextSnapshot(),
                                     "referenceAnswer",
                                     Objects.toString(question.getReferenceAnswerSnapshot(), ""),
+                                    "rubric",
+                                    Objects.toString(owned.attempt().getRubricSnapshot(), ""),
                                     "followupsUsed",
                                     followupsFor(question),
                                     "maxFollowups",
@@ -230,7 +267,7 @@ public class InterviewStateStore {
                                     "Giới hạn hỏi xoáy cho câu chính hiện tại, đồng thời không vượt"
                                             + " tổng giới hạn của lượt thi",
                                     "conversation",
-                                    history.stream()
+                                    conversationContext(owned).stream()
                                             .filter(t -> t.getTextContent() != null)
                                             .map(
                                                     t ->
@@ -623,6 +660,26 @@ public class InterviewStateStore {
 
     private List<InterviewTurn> history(AttemptQuestion question) {
         return turns.findByAttemptQuestionIdOrderByTurnNo(question.getId());
+    }
+
+    private List<InterviewTurn> conversationContext(Owned owned) {
+        var ids = owned.questions().stream().map(AttemptQuestion::getId).toList();
+        var order = new java.util.HashMap<UUID, Integer>();
+        for (var q : owned.questions()) order.put(q.getId(), q.getSequenceNo());
+        var ordered = turns.findByAttemptQuestionIdInOrderByTurnNo(ids).stream()
+                .filter(t -> t.getTextContent() != null)
+                .sorted(java.util.Comparator.comparingInt((InterviewTurn t) -> order.get(t.getAttemptQuestionId()))
+                        .thenComparingInt(InterviewTurn::getTurnNo)).toList();
+        // Always retain the newest answer whole; keep a bounded suffix of the full-session history.
+        var selected = new ArrayList<InterviewTurn>();
+        int characters = 0;
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            var turn = ordered.get(i);
+            if (!selected.isEmpty() && characters + turn.getTextContent().length() > 48000) break;
+            selected.addFirst(turn);
+            characters += turn.getTextContent().length();
+        }
+        return selected;
     }
 
     private InterviewTurn last(List<InterviewTurn> values) {

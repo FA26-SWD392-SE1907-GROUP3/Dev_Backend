@@ -5,6 +5,7 @@ import com.example.swd392_se1907_aives.modules.examination.internal.domain.entit
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.UUID;
 public interface InterviewTurnRepository extends JpaRepository<InterviewTurn, UUID> {
+    java.util.Optional<InterviewTurn> findFirstByReplyToTurnIdAndSpeaker(UUID promptId, String speaker);
 
 
     java.util.List<InterviewTurn> findByAttemptQuestionIdOrderByTurnNo(UUID attemptQuestionId);

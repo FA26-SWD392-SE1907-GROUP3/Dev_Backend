@@ -71,6 +71,7 @@ app:
     voice: ${OPENAI_TTS_VOICE:coral}
     openai-base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     timeouts-enabled: ${INTERVIEW_TIMEOUTS_ENABLED:true}
+    stream-timeout-seconds: ${INTERVIEW_STREAM_TIMEOUT_SECONDS:60}
   materials:
     storage-dir: ${MATERIAL_STORAGE_DIR:./storage/materials}
   jwt:

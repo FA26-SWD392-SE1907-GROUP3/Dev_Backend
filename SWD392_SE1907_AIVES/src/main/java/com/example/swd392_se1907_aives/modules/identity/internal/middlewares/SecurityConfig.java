@@ -50,7 +50,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, error) ->
                                 writeError(response, 403, "Tài khoản của bạn không có quyền thực hiện thao tác này.")))
                 .authorizeHttpRequests(auth -> auth
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // The WebSocket handshake consumes a short-lived, one-use ticket issued by an authenticated endpoint.
                         .requestMatchers("/api/v1/interviews/live").permitAll()

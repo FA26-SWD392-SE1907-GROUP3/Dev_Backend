@@ -5,6 +5,8 @@ import com.example.swd392_se1907_aives.modules.examination.internal.dto.Intervie
 import com.example.swd392_se1907_aives.modules.examination.internal.dto.InterviewDtos.PromptRequest;
 import com.example.swd392_se1907_aives.modules.examination.internal.dto.InterviewDtos.State;
 import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewService;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewConversationService;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import jakarta.validation.Valid;
 
@@ -33,6 +35,25 @@ import java.util.UUID;
 @PreAuthorize("hasRole('STUDENT')")
 public class InterviewController {
     private final InterviewService service;
+    private final InterviewConversationService conversation;
+
+    @PostMapping(value = "/{id}/turns/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> stream(@PathVariable UUID id, @Valid @RequestBody AnswerRequest request) {
+        return streamResponse(conversation.answer(id, request.promptId(), request.text()));
+    }
+
+    @PostMapping(value = "/{id}/continue/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> resumeStream(@PathVariable UUID id, @Valid @RequestBody ContinueRequest request) {
+        return streamResponse(conversation.resume(id, request.answerTurnId()));
+    }
+
+    @PostMapping("/{id}/finish")
+    public State finish(@PathVariable UUID id) { return conversation.finish(id); }
+
+    private ResponseEntity<SseEmitter> streamResponse(SseEmitter emitter) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header("X-Accel-Buffering", "no").body(emitter);
+    }
 
     @GetMapping("/{id}")
     public State state(@PathVariable UUID id) {
