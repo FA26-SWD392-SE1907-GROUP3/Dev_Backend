@@ -1,0 +1,95 @@
+spring:
+  application:
+    name: aives-backend
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+
+  # DATABASE (Neon PostgreSQL Cloud)
+  datasource:
+    url: "${DB_URL:jdbc:postgresql://ep-divine-leaf-b5hw8wos-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channelBinding=require}"
+    username: ${DB_USERNAME:neondb_owner}
+    password: ${DB_PASSWORD:npg_mEAD3Qs0KJjF}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 0
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:10000}
+      # pgJDBC limits are in seconds; bound stalled cloud connections and queries.
+      data-source-properties:
+        connectTimeout: ${DB_CONNECT_TIMEOUT_SECONDS:10}
+        socketTimeout: ${DB_SOCKET_TIMEOUT_SECONDS:30}
+        queryTimeout: ${DB_QUERY_TIMEOUT_SECONDS:15}
+        cancelSignalTimeout: ${DB_CANCEL_TIMEOUT_SECONDS:5}
+        tcpKeepAlive: true
+
+  transaction:
+    default-timeout: ${DB_TRANSACTION_TIMEOUT:30s}
+
+  # JPA / HIBERNATE
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: ${JPA_FORMAT_SQL:false}
+        jdbc:
+          time_zone: UTC
+  jackson:
+    time-zone: UTC
+  sql:
+    init:
+      mode: never
+
+# SWAGGER / OPENAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+# SERVER
+server:
+  port: ${PORT:8080}
+
+# JWT / CORS
+app:
+  ai:
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4.1-mini}
+    responses-url: ${OPENAI_RESPONSES_URL:https://api.openai.com/v1/responses}
+  interview:
+    storage-dir: ${INTERVIEW_STORAGE_DIR:./storage/interviews}
+    followup-model: ${OPENAI_INTERVIEW_MODEL:gpt-4.1-mini}
+    stt-model: ${OPENAI_STT_MODEL:gpt-4o-mini-transcribe}
+    realtime-model: ${OPENAI_REALTIME_STT_MODEL:gpt-live-transcribe}
+    tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
+    voice: ${OPENAI_TTS_VOICE:coral}
+    openai-base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    timeouts-enabled: ${INTERVIEW_TIMEOUTS_ENABLED:true}
+    stream-timeout-seconds: ${INTERVIEW_STREAM_TIMEOUT_SECONDS:60}
+  materials:
+    storage-dir: ${MATERIAL_STORAGE_DIR:./storage/materials}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000}
+
+# Property names consumed by the current JwtService.
+jwt:
+  secret: ${app.jwt.secret}
+  expiration: ${app.jwt.expiration-ms}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never

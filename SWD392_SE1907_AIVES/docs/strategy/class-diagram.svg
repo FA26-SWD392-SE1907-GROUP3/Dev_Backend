@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050">
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#334155" stroke-width="1.5"/></marker>
+    <marker id="realization" viewBox="0 0 18 18" refX="17" refY="9" markerWidth="18" markerHeight="18" orient="auto"><path d="M1 1 L17 9 L1 17 Z" fill="white" stroke="#334155" stroke-width="1.5"/></marker>
+    <style>text{font-family:Arial,sans-serif;fill:#15243b}.title{font-size:32px;font-weight:700}.name{font-size:23px;font-weight:700}.role{font-size:17px;fill:#425d80}.member{font-size:18px}.small{font-size:17px;fill:#425d80}.box{fill:white;stroke:#334155;stroke-width:2}.header{fill:#e7effb}.edge{fill:none;stroke:#334155;stroke-width:2}.real{fill:none;stroke:#334155;stroke-width:2;stroke-dasharray:9 7}</style>
+  </defs>
+  <rect width="1600" height="1050" fill="#f6f8fc"/>
+  <text x="50" y="53" class="title">AIVES · Strategy Pattern — Chọn bộ câu hỏi</text>
+  <text x="50" y="83" class="small">Class diagram cụ thể, khớp code backend · service / impl · chỉ hiển thị thành phần liên quan</text>
+
+  <rect x="50" y="120" width="710" height="160" class="box"/>
+  <path d="M51 121 H759 V182 H51 Z" class="header"/>
+  <text x="405" y="145" text-anchor="middle" class="role">«Service» · nơi gọi trong luồng thi</text>
+  <text x="405" y="173" text-anchor="middle" class="name">AttemptServiceImpl</text>
+  <path d="M50 184 H760 M50 230 H760" class="edge"/>
+  <text x="70" y="214" class="member">- selector : QuestionSetSelector</text>
+  <text x="70" y="262" class="member">+ start(candidateId : UUID) : AttemptView</text>
+
+  <path d="M405 280 V368" class="edge" marker-end="url(#arrow)"/>
+  <text x="425" y="318" class="small">selector</text>
+  <text x="420" y="356" class="member">1</text>
+
+  <rect x="50" y="370" width="710" height="220" class="box"/>
+  <path d="M51 371 H759 V434 H51 Z" class="header"/>
+  <text x="405" y="396" text-anchor="middle" class="role">«Context» · «Service»</text>
+  <text x="405" y="424" text-anchor="middle" class="name">QuestionSetSelector</text>
+  <path d="M50 436 H760 M50 484 H760" class="edge"/>
+  <text x="70" y="466" class="member">- strategies : Map&lt;String, QuestionSelectionStrategy&gt;</text>
+  <text x="70" y="518" class="member">+ QuestionSetSelector(strategies)</text>
+  <text x="70" y="550" class="member">+ select(eligible, count, mode, previous, usage)</text>
+  <text x="90" y="576" class="member">: List&lt;QuestionInfo&gt;</text>
+
+  <path d="M760 465 H848" class="edge" marker-end="url(#arrow)"/>
+  <text x="803" y="432" text-anchor="middle" class="small">strategies</text>
+  <text x="803" y="453" text-anchor="middle" class="small">1..*</text>
+
+  <rect x="850" y="370" width="700" height="220" class="box"/>
+  <path d="M851 371 H1549 V434 H851 Z" class="header"/>
+  <text x="1200" y="396" text-anchor="middle" class="role">«interface» · Strategy</text>
+  <text x="1200" y="424" text-anchor="middle" class="name">QuestionSelectionStrategy</text>
+  <path d="M850 436 H1550 M850 484 H1550" class="edge"/>
+  <text x="870" y="518" class="member">+ mode() : String</text>
+  <text x="870" y="550" class="member">+ select(eligible, count, previous, usage)</text>
+  <text x="890" y="576" class="member">: List&lt;QuestionInfo&gt;</text>
+
+  <path d="M405 730 V650 H1060 V592" class="real" marker-end="url(#realization)"/>
+  <path d="M1200 730 V592" class="real" marker-end="url(#realization)"/>
+  <text x="700" y="635" class="small">implements / realization</text>
+  <text x="1220" y="682" class="small">implements</text>
+
+  <rect x="50" y="730" width="710" height="235" class="box"/>
+  <path d="M51 731 H759 V794 H51 Z" class="header"/>
+  <text x="405" y="756" text-anchor="middle" class="role">«ConcreteStrategy» · «Service» · package impl</text>
+  <text x="405" y="784" text-anchor="middle" class="name">RandomQuestionSelectionImpl</text>
+  <path d="M50 796 H760 M50 838 H760" class="edge"/>
+  <text x="70" y="824" class="member">- random : Random</text>
+  <text x="70" y="868" class="member">+ RandomQuestionSelectionImpl() / (random : Random)</text>
+  <text x="70" y="897" class="member">+ mode() : String</text>
+  <text x="70" y="926" class="member">+ select(eligible, count, previous, usage)</text>
+  <text x="90" y="952" class="member">: List&lt;QuestionInfo&gt;</text>
+
+  <rect x="850" y="730" width="700" height="235" class="box"/>
+  <path d="M851 731 H1549 V794 H851 Z" class="header"/>
+  <text x="1200" y="756" text-anchor="middle" class="role">«ConcreteStrategy» · «Service» · package impl</text>
+  <text x="1200" y="784" text-anchor="middle" class="name">AdaptiveQuestionSelectionImpl</text>
+  <path d="M850 796 H1550 M850 838 H1550" class="edge"/>
+  <text x="870" y="824" class="member">- random : Random</text>
+  <text x="870" y="868" class="member">+ AdaptiveQuestionSelectionImpl() / (random : Random)</text>
+  <text x="870" y="897" class="member">+ mode() : String</text>
+  <text x="870" y="926" class="member">+ select(eligible, count, previous, usage)</text>
+  <text x="890" y="952" class="member">: List&lt;QuestionInfo&gt;</text>
+
+  <text x="50" y="1003" class="small">+ public · − private · đường liền: association · nét đứt + tam giác rỗng: realization · không dùng composition</text>
+  <text x="50" y="1032" class="small">Kiểu tham số và constructor được rút gọn để trình chiếu; xem chữ ký đầy đủ trong class-diagram.puml và code Java.</text>
+</svg>

@@ -1,0 +1,47 @@
+@startuml
+title AIVES - Strategy: chon bo cau hoi
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+class AttemptServiceImpl <<Service>> {
+  -selector : QuestionSetSelector
+  +start(candidateId : UUID) : AttemptView
+}
+class QuestionSetSelector <<Context, Service>> {
+  -strategies : Map<String, QuestionSelectionStrategy>
+  +QuestionSetSelector(strategies : List<QuestionSelectionStrategy>)
+  +select(eligible : List<QuestionInfo>, count : int, mode : String, previous : Set<UUID>, usage : Map<UUID, Integer>) : List<QuestionInfo>
+}
+interface QuestionSelectionStrategy <<Strategy>> {
+  +mode() : String
+  +select(eligible : List<QuestionInfo>, count : int, previous : Set<UUID>, usage : Map<UUID, Integer>) : List<QuestionInfo>
+}
+class RandomQuestionSelectionImpl <<ConcreteStrategy, Service>> {
+  -random : Random
+  +RandomQuestionSelectionImpl()
+  +RandomQuestionSelectionImpl(random : Random)
+  +mode() : String
+  +select(eligible : List<QuestionInfo>, count : int, previous : Set<UUID>, usage : Map<UUID, Integer>) : List<QuestionInfo>
+}
+class AdaptiveQuestionSelectionImpl <<ConcreteStrategy, Service>> {
+  -random : Random
+  +AdaptiveQuestionSelectionImpl()
+  +AdaptiveQuestionSelectionImpl(random : Random)
+  +mode() : String
+  +select(eligible : List<QuestionInfo>, count : int, previous : Set<UUID>, usage : Map<UUID, Integer>) : List<QuestionInfo>
+}
+
+AttemptServiceImpl --> "1" QuestionSetSelector : selector
+QuestionSetSelector --> "1..*" QuestionSelectionStrategy : strategies
+RandomQuestionSelectionImpl ..|> QuestionSelectionStrategy
+AdaptiveQuestionSelectionImpl ..|> QuestionSelectionStrategy
+note bottom of QuestionSetSelector
+  RANDOM / ADAPTIVE chooses the strategy per call.
+  Null/unknown mode falls back to RANDOM.
+end note
+note bottom of AttemptServiceImpl
+  Only members relevant to this pattern are shown.
+  Spring manages the beans; no composition diamond.
+end note
+@enduml
