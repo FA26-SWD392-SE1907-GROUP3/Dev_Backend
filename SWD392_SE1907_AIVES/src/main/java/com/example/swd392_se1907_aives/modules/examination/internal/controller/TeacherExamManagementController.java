@@ -59,6 +59,18 @@ public class TeacherExamManagementController {
         return service.reschedule(id, candidateId, request);
     }
 
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/candidates/{candidateId}/retakes")
+    public CandidateView grantRetake(@PathVariable UUID id, @PathVariable UUID candidateId,
+            @Valid @RequestBody com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeRequest request) {
+        return service.grantRetake(id, candidateId, request);
+    }
+
+    @GetMapping("/{id}/candidates/{candidateId}/retakes")
+    public List<com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeView> retakes(
+            @PathVariable UUID id, @PathVariable UUID candidateId) {
+        return service.retakes(id, candidateId);
+    }
+
     @DeleteMapping("/{id}/candidates/{candidateId}")
     public void cancelCandidate(@PathVariable UUID id, @PathVariable UUID candidateId) {
         service.cancelCandidate(id, candidateId);

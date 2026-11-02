@@ -31,6 +31,17 @@ public class UserServiceImpl implements UserService {
     private final UserMapper mapper;
     private final PasswordEncoder encoder;
 
+    @Override @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public UserResponse approveRegistration(UUID id, com.example.swd392_se1907_aives.modules.identity.internal.domain.enums.RoleName role) {
+        var account=users.findLockedById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Không tìm thấy tài khoản."));
+        if(!account.isPendingRegistration()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Tài khoản đã được phân quyền.");
+        if(role==null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Vui lòng chọn vai trò.");
+        account.setRole(role.name());account.setRegistrationStatus("APPROVED");account.setIsActive(true);
+        account.setUpdatedAt(OffsetDateTime.now());
+        return mapper.toUserResponse(users.saveAndFlush(account));
+    }
+
     @Override
     public List<UserResponse> getAllUsers() {
         return mapper.toUserResponses(users.findAll());
@@ -69,6 +80,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse updateUser(UUID id, UserUpdateRequest request) {
         var u = get(id);
+        if(u.isPendingRegistration()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Vui lòng dùng thao tác Phân quyền cho tài khoản đang chờ duyệt.");
         if (request.getEmail() != null) {
             String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
             if (!email.equals(u.getEmail()) && users.existsByEmailIgnoreCase(email))
@@ -116,6 +128,7 @@ public class UserServiceImpl implements UserService {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "Không thể xóa hoặc khóa tài khoản đang đăng nhập.");
         var u = get(id);
+        if(active && u.isPendingRegistration()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Admin cần chọn vai trò và duyệt tài khoản trước khi kích hoạt.");
         u.setIsActive(active);
         u.setUpdatedAt(OffsetDateTime.now());
         return mapper.toUserResponse(users.save(u));

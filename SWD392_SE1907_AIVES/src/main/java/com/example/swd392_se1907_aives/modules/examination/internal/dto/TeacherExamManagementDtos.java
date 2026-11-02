@@ -17,7 +17,21 @@ public final class TeacherExamManagementDtos {
             String studentEmail,
             OffsetDateTime scheduledStart,
             OffsetDateTime scheduledEnd,
-            String status) {}
+            String status,
+            UUID latestAttemptId,
+            boolean canRetake,
+            boolean retakePending,
+            String retakeReason) {}
+
+    public record RetakeRequest(
+            @NotNull UUID previousAttemptId,
+            @NotNull OffsetDateTime scheduledStart,
+            @NotNull OffsetDateTime scheduledEnd,
+            @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=1000) String reason) {}
+
+    public record RetakeView(UUID id, UUID previousAttemptId, int nextAttemptNo, UUID grantedBy,
+            String reason, OffsetDateTime scheduledStart, OffsetDateTime scheduledEnd,
+            OffsetDateTime grantedAt, OffsetDateTime consumedAt, OffsetDateTime revokedAt) {}
 
     public record Schedule(
             @NotNull OffsetDateTime scheduledStart, @NotNull OffsetDateTime scheduledEnd) {}

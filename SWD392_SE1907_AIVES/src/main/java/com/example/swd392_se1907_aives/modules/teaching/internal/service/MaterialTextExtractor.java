@@ -19,8 +19,18 @@ public class MaterialTextExtractor {
     private static final int MAX_TEXT = 1_000_000;
     private static final int MAX_XML = 10_000_000;
 
+    public void validate(Path path,String mime) throws IOException {
+        if(MaterialService.PPT.equals(mime)||MaterialService.PPTX.equals(mime))PowerPointDocuments.validate(path,mime);
+        else extract(path,mime);
+    }
+
     public String extract(Path path, String mimeType) throws IOException {
-        String text = "application/pdf".equals(mimeType) ? pdf(path) : docx(path);
+        String text = switch(mimeType) {
+            case "application/pdf" -> pdf(path);
+            case MaterialService.DOCX -> docx(path);
+            case MaterialService.PPT, MaterialService.PPTX -> PowerPointDocuments.text(path,mimeType);
+            default -> throw new IOException("Định dạng tài liệu không được hỗ trợ.");
+        };
         text = text.replace('\u0000', ' ').replaceAll("[\\t ]+", " ").strip();
         if (text.isBlank())
             throw new IOException(

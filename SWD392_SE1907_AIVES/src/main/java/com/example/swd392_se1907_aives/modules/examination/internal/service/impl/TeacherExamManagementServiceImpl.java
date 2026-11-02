@@ -44,6 +44,7 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
     private final IdentityDirectory users;
     private final ExamCandidateRepository candidates;
     private final ExamAttemptRepository attempts;
+    private final com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamRetakeGrantRepository retakes;
 
     @Override
     public List<PoolView> pool(UUID id) {
@@ -100,8 +101,63 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
 
     @Override
     @Transactional
+    public CandidateView grantRetake(UUID id, UUID candidateId,
+            com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeRequest request) {
+        Exam exam = exam(id, true);
+        if (!Set.of("ACTIVE", "CLOSED").contains(exam.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ cấp thi lại cho kỳ thi đang mở hoặc đã đóng.");
+        var candidate = candidates.findById(candidateId).filter(c -> id.equals(c.getExamId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thí sinh trong kỳ thi."));
+        var history = attempts.findByCandidateIdOrderByAttemptNoAsc(candidateId).stream()
+                .map(a -> attempts.findLockedById(a.getId()).orElseThrow()).toList();
+        candidate = candidates.findLockedById(candidateId).orElseThrow();
+        if (history.isEmpty() || !history.getLast().getId().equals(request.previousAttemptId()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch sử thi đã thay đổi. Hãy tải lại danh sách thí sinh.");
+        if (history.stream().anyMatch(a -> Set.of("READY", "IN_PROGRESS").contains(a.getStatus()))
+                || !Set.of("COMPLETED", "ABORTED", "TIMED_OUT").contains(history.getLast().getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thí sinh vẫn còn lượt đang thi. Hãy tiếp tục hoặc hủy lượt đó trước khi cấp thi lại.");
+        var now = OffsetDateTime.now();
+        if (!request.scheduledStart().isBefore(request.scheduledEnd()) || !request.scheduledEnd().isAfter(now))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chọn khung giờ thi lại hợp lệ, kết thúc phải ở tương lai và sau giờ bắt đầu.");
+        var user = users.findById(candidate.getStudentId()).orElseThrow();
+        if (!"STUDENT".equals(user.getRole()) || !Boolean.TRUE.equals(user.getIsActive())
+                || !courses.isEnrolled(exam.getCourseId(), user.getId()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Sinh viên phải đang hoạt động và được ghi danh vào môn học.");
+        var pending = retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(candidateId);
+        if (pending.isPresent()) {
+            var old = pending.get();
+            if (old.getScheduledEnd().isAfter(now) && !"CANCELLED".equals(candidate.getStatus()))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Đã có một lịch thi lại chưa sử dụng. Hãy hủy lịch đó trước khi cấp lịch khác.");
+            old.setRevokedAt(now); retakes.saveAndFlush(old);
+        }
+        var grant = new com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamRetakeGrant();
+        grant.setCandidateId(candidateId); grant.setPreviousAttemptId(request.previousAttemptId());
+        grant.setNextAttemptNo(history.getLast().getAttemptNo() + 1); grant.setGrantedBy(access.current().getId());
+        grant.setReason(request.reason().strip()); grant.setScheduledStart(request.scheduledStart());
+        grant.setScheduledEnd(request.scheduledEnd()); grant.setGrantedAt(now); retakes.saveAndFlush(grant);
+        candidate.setScheduledStart(request.scheduledStart()); candidate.setScheduledEnd(request.scheduledEnd());
+        candidate.setStatus("READY"); candidates.save(candidate);
+        return view(candidate);
+    }
+
+    @Override
+    public List<com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeView> retakes(UUID id, UUID candidateId) {
+        exam(id, false);
+        candidates.findById(candidateId).filter(c -> id.equals(c.getExamId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thí sinh trong kỳ thi."));
+        return retakes.findByCandidateIdOrderByGrantedAtAsc(candidateId).stream().map(g ->
+                new com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeView(
+                        g.getId(), g.getPreviousAttemptId(), g.getNextAttemptNo(), g.getGrantedBy(), g.getReason(),
+                        g.getScheduledStart(), g.getScheduledEnd(), g.getGrantedAt(), g.getConsumedAt(), g.getRevokedAt())).toList();
+    }
+
+    @Override
+    @Transactional
     public void cancelCandidate(UUID id, UUID candidateId) {
-        available(exam(id, true));
+        Exam exam = exam(id, true);
+        if (!"CLOSED".equals(exam.getStatus())) available(exam);
+        else if (retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(candidateId).isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Kỳ thi đã đóng. Chỉ có thể hủy lịch thi lại chưa sử dụng.");
         var candidate =
                 candidates
                         .findById(candidateId)
@@ -119,7 +175,8 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
         candidate = candidates.findLockedById(candidateId).orElseThrow();
         if ("CANCELLED".equals(candidate.getStatus())) return;
         if ("COMPLETED".equals(candidate.getStatus())
-                || history.stream().anyMatch(attempt -> "COMPLETED".equals(attempt.getStatus())))
+                || !history.isEmpty() && "COMPLETED".equals(history.getLast().getStatus())
+                        && !retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(candidateId).isPresent())
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Sinh viên đã hoàn thành lượt thi. Giữ nguyên lịch sử kết quả.");
@@ -131,6 +188,8 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
                 attempt.setLastActivityAt(now);
                 attempts.save(attempt);
             }
+        retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(candidateId)
+                .ifPresent(grant -> { grant.setRevokedAt(now); retakes.save(grant); });
         candidate.setStatus("CANCELLED");
         candidates.save(candidate);
     }
@@ -183,6 +242,11 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
 
     private CandidateView view(ExamCandidate c) {
         var user = users.findById(c.getStudentId()).orElseThrow();
+        var history = attempts.findByCandidateIdOrderByAttemptNoAsc(c.getId());
+        var latest = history.isEmpty() ? null : history.getLast();
+        var grant = retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(c.getId()).orElse(null);
+        boolean pending = grant != null && grant.getScheduledEnd().isAfter(OffsetDateTime.now()) && "READY".equals(c.getStatus());
+        boolean canRetake = latest != null && Set.of("COMPLETED", "ABORTED", "TIMED_OUT").contains(latest.getStatus()) && !pending;
         return new CandidateView(
                 c.getId(),
                 user.getId(),
@@ -190,7 +254,7 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
                 user.getEmail(),
                 c.getScheduledStart(),
                 c.getScheduledEnd(),
-                c.getStatus());
+                c.getStatus(), latest == null ? null : latest.getId(), canRetake, pending, grant == null ? null : grant.getReason());
     }
 
     private void available(Exam exam) {

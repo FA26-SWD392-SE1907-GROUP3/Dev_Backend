@@ -31,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 try {
                     userRepository.findById(UUID.fromString(jwtService.extractUserId(token)))
                         .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
+                        .filter(u -> !u.isPendingRegistration())
                         .ifPresent(user -> SecurityContextHolder.getContext().setAuthentication(
                             new UsernamePasswordAuthenticationToken(user, null,
                                 List.of(new SimpleGrantedAuthority("ROLE_"+user.getRole())))));

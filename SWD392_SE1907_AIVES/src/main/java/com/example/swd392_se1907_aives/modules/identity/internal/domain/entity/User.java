@@ -18,7 +18,7 @@ public class User {
     private UUID id;
     @Column(name="full_name", nullable=false, length=150)
     private String fullName;
-    @Column(name="email", nullable=false, length=255)
+    @Column(name="email", nullable=false, length=255, unique=true)
     private String email;
     @Column(name="password_hash", nullable=false)
     private String passwordHash;
@@ -26,6 +26,11 @@ public class User {
     private String role;
     @Column(name="is_active", nullable=false)
     private Boolean isActive;
+    @Builder.Default
+    @Column(name="registration_status", length=20)
+    private String registrationStatus = "APPROVED";
+
+    public boolean isPendingRegistration() { return "PENDING".equals(registrationStatus); }
     @Column(name="created_at", nullable=false)
     private OffsetDateTime createdAt;
     @Column(name="updated_at", nullable=false)

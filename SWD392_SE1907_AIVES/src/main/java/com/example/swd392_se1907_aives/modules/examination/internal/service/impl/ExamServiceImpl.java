@@ -141,8 +141,8 @@ public class ExamServiceImpl implements ExamService {
     @PreAuthorize("hasRole('LECTURER')")
     public ExamView activate(UUID id) {
         Exam exam = locked(id);
-        if (!Set.of("DRAFT", "SCHEDULED").contains(exam.getStatus()))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Exam cannot be activated");
+        if (!Set.of("DRAFT", "SCHEDULED", "CLOSED").contains(exam.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ mở kỳ thi nháp, đã lên lịch hoặc đã đóng.");
         if (exam.getRubricId() == null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Chọn rubric chấm toàn bài trước khi mở kỳ thi.");

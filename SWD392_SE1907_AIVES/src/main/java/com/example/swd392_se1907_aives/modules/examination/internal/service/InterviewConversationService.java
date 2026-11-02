@@ -5,6 +5,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.UUID;
 
 public interface InterviewConversationService {
+    void checkpoint(UUID attemptId, UUID promptId, long revision, String text);
     SseEmitter answer(UUID attemptId, UUID promptId, String text);
     SseEmitter resume(UUID attemptId, UUID answerTurnId);
     State finish(UUID attemptId);

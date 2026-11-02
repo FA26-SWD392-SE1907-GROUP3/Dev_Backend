@@ -61,6 +61,7 @@ public class MaterialController {
     }
 
     @GetMapping("/courses/{courseId}/materials")
+    @PreAuthorize("hasAnyRole('ADMIN','LECTURER','STUDENT')")
     public List<MaterialView> list(@PathVariable UUID courseId) {
         return service.list(courseId).stream().map(this::view).toList();
     }
@@ -80,6 +81,7 @@ public class MaterialController {
     }
 
     @GetMapping("/materials/{id}/chunks")
+    @PreAuthorize("hasAnyRole('ADMIN','LECTURER','STUDENT')")
     public List<ChunkView> chunks(@PathVariable UUID id) {
         return service.chunks(id).stream()
                 .map(
@@ -93,9 +95,11 @@ public class MaterialController {
     }
 
     @GetMapping("/materials/{id}/download")
+    @PreAuthorize("hasAnyRole('ADMIN','LECTURER','STUDENT')")
     public ResponseEntity<Resource> download(@PathVariable UUID id) {
         CourseMaterial m = service.get(id);
         return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(m.getMimeType()))
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
@@ -105,5 +109,23 @@ public class MaterialController {
                                 .toString())
                 .header("X-Content-Type-Options", "nosniff")
                 .body(new FileSystemResource(service.file(m)));
+    }
+
+    @GetMapping("/materials/{id}/preview")
+    @PreAuthorize("hasAnyRole('ADMIN','LECTURER','STUDENT')")
+    public ResponseEntity<Resource> preview(@PathVariable UUID id) {
+        var material=service.get(id);var preview=service.preview(id);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.inline()
+                        .filename(material.getOriginalFilename().replaceFirst("\\.[^.]+$","")+".pdf",StandardCharsets.UTF_8).build().toString())
+                .header("X-Content-Type-Options","nosniff")
+                .body(new FileSystemResource(preview));
+    }
+
+    @GetMapping("/materials/{id}/text")
+    @PreAuthorize("hasAnyRole('ADMIN','LECTURER','STUDENT')")
+    public com.example.swd392_se1907_aives.modules.teaching.internal.dto.MaterialDtos.TextPreview text(@PathVariable UUID id) {
+        return new com.example.swd392_se1907_aives.modules.teaching.internal.dto.MaterialDtos.TextPreview(service.textPreview(id));
     }
 }

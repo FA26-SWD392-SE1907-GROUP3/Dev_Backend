@@ -31,6 +31,13 @@ import java.util.UUID;
 public class UserController {
     private final UserService service;
 
+    @PostMapping("/{id}/approve-registration")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<UserResponse> approve(@PathVariable UUID id,
+            @Valid @RequestBody com.example.swd392_se1907_aives.modules.identity.internal.domain.dto.request.RegistrationApprovalRequest request) {
+        return ApiResponse.<UserResponse>builder().code(200).data(service.approveRegistration(id,request.role())).build();
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<UserResponse>> all() {

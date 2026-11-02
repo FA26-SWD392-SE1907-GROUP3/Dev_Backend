@@ -48,7 +48,9 @@ public class InterviewAiClient {
     private final HttpClient http =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    public record Decision(boolean askFollowup, String question, String reason) {}
+    public record Decision(boolean askFollowup, String question, String reason, String feedback) {
+        public Decision(boolean askFollowup,String question,String reason){this(askFollowup,question,reason,"");}
+    }
 
     public InterviewAiClient(
             ObjectMapper mapper,

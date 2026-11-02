@@ -290,6 +290,129 @@ class ExamSchedulingTests {
         var invalid=new HashMap<String,Object>(body);invalid.put("maxFollowupsPerStudent",101);
         mvc.perform(post("/api/v1/exams").header("Authorization",token).contentType("application/json").content(json.writeValueAsString(invalid))).andExpect(status().isBadRequest());
     }
+
+    @Autowired com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamRetakeGrantRepository retakes;
+    @Autowired com.example.swd392_se1907_aives.modules.examination.internal.repository.InterviewTurnRepository turns;
+
+    @Test void closedExamCanReopenWithoutAutomaticallyGrantingRetakesOrChangingResults()throws Exception {
+        String candidate=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(candidate)).getFirst();
+        String url="/api/v1/exams/"+exam.getId();
+        mvc.perform(patch(url+"/close").header("Authorization",token)).andExpect(status().isOk());
+        mvc.perform(patch(url+"/activate").header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ACTIVE"));
+        mvc.perform(post("/api/v1/attempts/start/"+candidate).header("Authorization",token(student))).andExpect(status().isConflict());
+        assertThat(attempts.findById(old.getId()).orElseThrow().getGradingResult()).isEqualTo("OLD-GRADE");
+        assertThat(retakes.findByCandidateIdOrderByGrantedAtAsc(UUID.fromString(candidate))).isEmpty();
+    }
+    @Test void reopenRevalidatesApprovedPoolAndPublishedRubricAndPermissions()throws Exception {
+        exam.setStatus("CLOSED");exams.saveAndFlush(exam);String url="/api/v1/exams/"+exam.getId()+"/activate";
+        mvc.perform(patch(url).header("Authorization",token)).andExpect(status().isBadRequest());
+        addPoolQuestion();var rubric=rubrics.findById(exam.getRubricId()).orElseThrow();rubric.setStatus("DRAFT");rubrics.saveAndFlush(rubric);
+        mvc.perform(patch(url).header("Authorization",token)).andExpect(status().isBadRequest());
+        for(User actor:List.of(student,user("LECTURER"),user("ADMIN")))mvc.perform(patch(url).header("Authorization",token(actor))).andExpect(status().isForbidden());
+        mvc.perform(patch(url)).andExpect(status().isUnauthorized());
+        assertThat(exams.findById(exam.getId()).orElseThrow().getStatus()).isEqualTo("CLOSED");
+    }
+    @Test void grantedRetakeCreatesNextAttemptOnceAndRetainsTranscriptGradeAndAuthorizationAudit()throws Exception {
+        String id=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        var turn=new com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.InterviewTurn();
+        turn.setAttemptQuestionId(assigned.findByAttemptIdOrderBySequenceNo(old.getId()).getFirst().getId());turn.setTurnNo(1);
+        turn.setSpeaker("AI");turn.setKind("MAIN_QUESTION");turn.setFollowupNumber(0);turn.setTextContent("OLD-TRANSCRIPT");turn.setSpeechStatus("NONE");turn.setCreatedAt(OffsetDateTime.now());turns.saveAndFlush(turn);
+        grant(id,old.getId(),OffsetDateTime.now().minusMinutes(1),OffsetDateTime.now().plusMinutes(30),"Mất kết nối micro trong lượt trước.",200);
+        mvc.perform(get("/api/v1/student/exams").header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("START"));
+        mvc.perform(get("/api/v1/student/exams/"+id+"/attempts").header("Authorization",token(student))).andExpect(status().isOk()).andExpect(jsonPath("$[0].attemptNo").value(1));
+        for(int i=0;i<2;i++)mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isOk());
+        var history=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id));assertThat(history).hasSize(2);
+        assertThat(history.getLast().getAttemptNo()).isEqualTo(2);assertThat(history.getLast().getStatus()).isEqualTo("IN_PROGRESS");
+        assertThat(history.getFirst().getGradingResult()).isEqualTo("OLD-GRADE");assertThat(turns.findById(turn.getId()).orElseThrow().getTextContent()).isEqualTo("OLD-TRANSCRIPT");
+        var grant=retakes.findByCandidateIdOrderByGrantedAtAsc(UUID.fromString(id)).getFirst();assertThat(grant.getGrantedBy()).isEqualTo(teacher.getId());assertThat(grant.getConsumedAt()).isNotNull();
+        mvc.perform(get("/api/v1/exams/"+exam.getId()+"/candidates/"+id+"/retakes").header("Authorization",token)).andExpect(status().isOk()).andExpect(jsonPath("$[0].reason").value("Mất kết nối micro trong lượt trước."));
+    }
+    @Test void grantRejectsActiveAttemptDuplicatePendingAndStalePreviousAttempt()throws Exception {
+        String id=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        grant(id,UUID.randomUUID(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Sự cố",409);
+        grant(id,old.getId(),OffsetDateTime.now().minusMinutes(1),OffsetDateTime.now().plusMinutes(30),"Sự cố",200);
+        grant(id,old.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Cấp trùng",409);
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isOk());
+        var active=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getLast();
+        grant(id,active.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Đang thi",409);
+        mvc.perform(delete("/api/v1/exams/"+exam.getId()+"/candidates/"+id).header("Authorization",token)).andExpect(status().isOk());
+        assertThat(attempts.findById(active.getId()).orElseThrow().getStatus()).isEqualTo("ABORTED");
+        assertThat(attempts.findById(old.getId()).orElseThrow().getStatus()).isEqualTo("COMPLETED");
+        grant(id,old.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Màn hình cũ",409);
+        grant(id,active.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Cấp lại sau sự cố",200);
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isOk());
+        assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getLast().getAttemptNo()).isEqualTo(3);
+    }
+    @Test void closedExamAllowsPreparingAndRevokingRetakeButStudentMustWaitForReopeningAndSchedule()throws Exception {
+        String id=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        mvc.perform(patch("/api/v1/exams/"+exam.getId()+"/close").header("Authorization",token)).andExpect(status().isOk());
+        grant(id,old.getId(),OffsetDateTime.now().plusHours(1),OffsetDateTime.now().plusHours(2),"Lịch thi bù",200);
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isConflict());
+        mvc.perform(delete("/api/v1/exams/"+exam.getId()+"/candidates/"+id).header("Authorization",token)).andExpect(status().isOk());
+        assertThat(retakes.findByCandidateIdOrderByGrantedAtAsc(UUID.fromString(id)).getFirst().getRevokedAt()).isNotNull();
+        grant(id,old.getId(),OffsetDateTime.now().plusHours(1),OffsetDateTime.now().plusHours(2),"Đổi lịch bù",200);
+        mvc.perform(patch("/api/v1/exams/"+exam.getId()+"/activate").header("Authorization",token)).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isConflict());
+        assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id))).hasSize(1);
+    }
+    @Test void retakePermissionValidationAndEnrollmentAreCheckedOnServer()throws Exception {
+        String id=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        var payload=retakeBody(old.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Sự cố");String url="/api/v1/exams/"+exam.getId()+"/candidates/"+id+"/retakes";
+        mvc.perform(post(url).contentType("application/json").content(json.writeValueAsString(payload))).andExpect(status().isUnauthorized());
+        for(User actor:List.of(student,user("ADMIN"),user("LECTURER"))){
+            mvc.perform(post(url).header("Authorization",token(actor)).contentType("application/json").content(json.writeValueAsString(payload))).andExpect(status().isForbidden());
+            mvc.perform(get(url).header("Authorization",token(actor))).andExpect(status().isForbidden());
+        }
+        grant(id,old.getId(),OffsetDateTime.now().plusHours(2),OffsetDateTime.now().plusHours(1),"Sự cố",400);
+        grant(id,old.getId(),OffsetDateTime.now().minusHours(2),OffsetDateTime.now().minusHours(1),"Sự cố",400);
+        for(String invalid:List.of(" ","x".repeat(1001)))grant(id,old.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),invalid,400);
+        enrollment("DROPPED");grant(id,old.getId(),OffsetDateTime.now(),OffsetDateTime.now().plusMinutes(30),"Sự cố",409);
+        assertThat(retakes.findByCandidateIdOrderByGrantedAtAsc(UUID.fromString(id))).isEmpty();
+    }
+    @Test void concurrentRetakeGrantsAndConcurrentStartsOnlyAuthorizeAndCreateOneNewAttempt()throws Exception {
+        String id=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        String payload=json.writeValueAsString(retakeBody(old.getId(),OffsetDateTime.now().minusMinutes(1),OffsetDateTime.now().plusMinutes(30),"Sự cố"));
+        var executor=Executors.newFixedThreadPool(2);
+        try{
+            Callable<Integer> grant=()->mvc.perform(post("/api/v1/exams/"+exam.getId()+"/candidates/"+id+"/retakes").header("Authorization",token).contentType("application/json").content(payload)).andReturn().getResponse().getStatus();
+            var grants=executor.invokeAll(List.of(grant,grant));assertThat(List.of(grants.get(0).get(),grants.get(1).get())).containsExactlyInAnyOrder(200,409);
+            Callable<Integer> start=()->mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andReturn().getResponse().getStatus();
+            var starts=executor.invokeAll(List.of(start,start));assertThat(List.of(starts.get(0).get(),starts.get(1).get())).containsOnly(200);
+            assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id))).hasSize(2);
+            assertThat(retakes.findByCandidateIdOrderByGrantedAtAsc(UUID.fromString(id))).hasSize(1);
+        }finally{executor.shutdownNow();}
+    }
+    @Test void failedRetakeStartDoesNotConsumePermissionAndExpiredPermissionCannotBeUsed()throws Exception {
+        String id=completedCandidate();var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();
+        grant(id,old.getId(),OffsetDateTime.now().minusMinutes(1),OffsetDateTime.now().plusMinutes(30),"Sự cố",200);
+        var selected=pool.findByIdExamId(exam.getId()).getFirst();var question=questions.findById(selected.getId().getQuestionId()).orElseThrow();
+        question.setStatus("ARCHIVED");questions.saveAndFlush(question);
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isConflict());
+        var grant=retakes.findByCandidateIdOrderByGrantedAtAsc(UUID.fromString(id)).getFirst();assertThat(grant.getConsumedAt()).isNull();
+        assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id))).hasSize(1);
+        question.setStatus("APPROVED");questions.saveAndFlush(question);
+        grant.setScheduledEnd(OffsetDateTime.now().minusSeconds(1));retakes.saveAndFlush(grant);
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isConflict());
+        grant(id,old.getId(),OffsetDateTime.now().minusMinutes(1),OffsetDateTime.now().plusMinutes(20),"Lịch cũ hết hạn, cấp lịch mới",200);
+        assertThat(retakes.findById(grant.getId()).orElseThrow().getRevokedAt()).isNotNull();
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isOk());
+        assertThat(attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id))).hasSize(2);
+    }
+
+    private void addPoolQuestion(){
+        Question q=question("APPROVED");var item=new ExamQuestionPool();item.setId(new ExamQuestionPoolId(exam.getId(),q.getId()));item.setCourseId(course.getId());item.setSelectionWeight(1);item.setAddedAt(OffsetDateTime.now());pool.saveAndFlush(item);
+    }
+    private String completedCandidate()throws Exception {
+        addPoolQuestion();String id=assign(token,student.getEmail(),false,200);
+        mvc.perform(post("/api/v1/attempts/start/"+id).header("Authorization",token(student))).andExpect(status().isOk());
+        var old=attempts.findByCandidateIdOrderByAttemptNoAsc(UUID.fromString(id)).getFirst();old.setStatus("COMPLETED");old.setEndedAt(OffsetDateTime.now());old.setGradingStatus("COMPLETED");old.setGradingResult("OLD-GRADE");attempts.saveAndFlush(old);
+        var candidate=candidates.findById(UUID.fromString(id)).orElseThrow();candidate.setStatus("COMPLETED");candidates.saveAndFlush(candidate);return id;
+    }
+    private Map<String,Object> retakeBody(UUID previous,OffsetDateTime start,OffsetDateTime end,String reason){return Map.of("previousAttemptId",previous,"scheduledStart",start.toString(),"scheduledEnd",end.toString(),"reason",reason);}
+    private void grant(String id,UUID previous,OffsetDateTime start,OffsetDateTime end,String reason,int status)throws Exception {
+        mvc.perform(post("/api/v1/exams/"+exam.getId()+"/candidates/"+id+"/retakes").header("Authorization",token).contentType("application/json").content(json.writeValueAsString(retakeBody(previous,start,end,reason)))).andExpect(status().is(status));
+    }
+
     private com.fasterxml.jackson.databind.JsonNode importFile(String auth,String filename,String data,UUID rubricId,boolean preview)throws Exception{
         var request=multipart("/api/v1/courses/"+course.getId()+"/question-imports").file(new org.springframework.mock.web.MockMultipartFile("file",filename,"application/octet-stream",data.getBytes(java.nio.charset.StandardCharsets.UTF_8))).param("preview",String.valueOf(preview)).header("Authorization",auth);if(rubricId!=null)request.param("rubricId",rubricId.toString());
         return json.readTree(mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());

@@ -11,6 +11,16 @@ import java.util.UUID;
 
 public interface MaterialService {
     String DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    String PPT = "application/vnd.ms-powerpoint";
+    String PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+    static String extension(String mime) {
+        return switch(mime) { case "application/pdf" -> ".pdf"; case DOCX -> ".docx"; case PPT -> ".ppt"; case PPTX -> ".pptx"; default -> throw new IllegalArgumentException("Unsupported material type"); };
+    }
+
+    Path preview(UUID id);
+
+    String textPreview(UUID id);
 
     List<CourseMaterial> list(UUID courseId);
 

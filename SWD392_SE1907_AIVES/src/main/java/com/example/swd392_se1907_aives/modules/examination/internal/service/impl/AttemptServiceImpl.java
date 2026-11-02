@@ -55,6 +55,7 @@ public class AttemptServiceImpl implements AttemptService {
     private final com.fasterxml.jackson.databind.ObjectMapper json;
     private final QuestionSetSelector selector;
     private final InterviewService interview;
+    private final com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamRetakeGrantRepository retakes;
 
     @Override
     @Transactional
@@ -98,6 +99,7 @@ public class AttemptServiceImpl implements AttemptService {
                     HttpStatus.CONFLICT,
                     "Lịch thi đã bị giảng viên hủy. Bạn chỉ có thể xem lịch sử lượt thi.");
         var existing = attempts.findByCandidateIdOrderByAttemptNoAsc(candidateId);
+        com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamRetakeGrant grant = null;
         if (!existing.isEmpty()) {
             var previous = existing.getLast();
             if ("IN_PROGRESS".equals(previous.getStatus()) && "IN_PROGRESS".equals(c.getStatus()))
@@ -106,9 +108,14 @@ public class AttemptServiceImpl implements AttemptService {
                         candidateId,
                         previous.getStatus(),
                         attemptQuestions.findByAttemptIdOrderBySequenceNo(previous.getId()).size());
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Lượt thi đã kết thúc. Bạn chỉ có thể xem lịch sử lượt thi.");
+            grant = retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(candidateId).orElse(null);
+            if (grant == null || !"READY".equals(c.getStatus())
+                    || !Set.of("COMPLETED", "ABORTED", "TIMED_OUT").contains(previous.getStatus())
+                    || !previous.getId().equals(grant.getPreviousAttemptId())
+                    || grant.getNextAttemptNo() != previous.getAttemptNo() + 1
+                    || now.isBefore(grant.getScheduledStart()) || !now.isBefore(grant.getScheduledEnd()))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Lượt thi đã kết thúc. Chỉ được thi lại khi giảng viên cấp phép và trong đúng khung giờ mới.");
         }
         if (!Set.of("REGISTERED", "READY").contains(c.getStatus()))
             throw new ResponseStatusException(
@@ -149,9 +156,10 @@ public class AttemptServiceImpl implements AttemptService {
                         previous,
                         usage);
         ExamAttempt attempt = new ExamAttempt();
+        if (grant != null) { grant.setConsumedAt(now); retakes.save(grant); }
         attempt.setCandidateId(candidateId);
         attempt.setExamId(e.getId());
-        attempt.setAttemptNo(1);
+        attempt.setAttemptNo(grant == null ? 1 : grant.getNextAttemptNo());
         attempt.setStatus("IN_PROGRESS");
         attempt.setStartedAt(now);
         attempt.setLastActivityAt(now);

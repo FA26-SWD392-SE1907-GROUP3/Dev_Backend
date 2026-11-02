@@ -146,6 +146,8 @@ public class AttemptGradingServiceImpl implements AttemptGradingService {
                                                                         turn.getKind(),
                                                                         "text",
                                                                         turn.getTextContent(),
+                                                                        "followupReason",
+                                                                        Objects.toString(turn.getFollowupReason(), ""),
                                                                         "speechStatus",
                                                                         turn.getSpeechStatus()))
                                                 .toList();

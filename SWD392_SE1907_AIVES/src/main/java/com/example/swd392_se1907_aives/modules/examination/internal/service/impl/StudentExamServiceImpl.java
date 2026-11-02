@@ -33,6 +33,7 @@ public class StudentExamServiceImpl implements StudentExamService {
     private final ExamAttemptRepository attempts;
     private final CourseAccessService access;
     private final ExamRepository exams;
+    private final com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamRetakeGrantRepository retakes;
 
     @Override
     public List<CandidateView> myExams() {
@@ -80,7 +81,7 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
         var history = attempts.findByCandidateIdOrderByAttemptNoAsc(candidateId);
         var latest = history.isEmpty() ? null : history.getLast();
-        if (!"VIEW".equals(action(c, latest)))
+        if (!"VIEW".equals(action(c, latest)) && !(latest != null && "START".equals(action(c, latest))))
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Chỉ xem lịch sử sau khi thi xong hoặc lịch thi đã bị hủy. Lượt đang thi cần"
@@ -100,6 +101,13 @@ public class StudentExamServiceImpl implements StudentExamService {
     }
 
     private String action(ExamCandidate candidate, ExamAttempt attempt) {
+        if ("READY".equals(candidate.getStatus()) && attempt != null
+                && Set.of("COMPLETED", "ABORTED", "TIMED_OUT").contains(attempt.getStatus())) {
+            var grant = retakes.findFirstByCandidateIdAndConsumedAtIsNullAndRevokedAtIsNullOrderByGrantedAtDesc(candidate.getId()).orElse(null);
+            if (grant != null && grant.getPreviousAttemptId().equals(attempt.getId())
+                    && grant.getNextAttemptNo() == attempt.getAttemptNo() + 1
+                    && grant.getScheduledEnd().isAfter(java.time.OffsetDateTime.now())) return "START";
+        }
         if (Set.of("COMPLETED", "CANCELLED", "ABSENT").contains(candidate.getStatus())
                 || attempt != null && Set.of("COMPLETED", "ABORTED").contains(attempt.getStatus()))
             return "VIEW";

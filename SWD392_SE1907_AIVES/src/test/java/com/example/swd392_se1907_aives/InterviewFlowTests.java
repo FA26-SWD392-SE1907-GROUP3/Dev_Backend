@@ -321,6 +321,21 @@ class InterviewFlowTests {
         assertThat(state(id).path("status").asText()).isEqualTo("COMPLETED");
     }
 
+    @Test void naturalAcknowledgementIsSavedAndSpokenBeforeTheNextMainQuestion() throws Exception {
+        exam.setMainQuestionCount(2);exams.saveAndFlush(exam);addQuestion("Câu chính tiếp theo?");
+        when(conversationAi.stream(anyString(),any())).thenAnswer(invocation->{
+            java.util.function.Consumer<String> sink=invocation.getArgument(1);
+            sink.accept("Mình hiểu cách bạn tách các trách nhiệm.");
+            return new InterviewAiClient.Decision(false,"","Đủ rõ","Mình hiểu cách bạn tách các trách nhiệm.");
+        });
+        String id=start();String response=stream(id,prompt(state(id)),"Em tách nhiệm vụ của từng thành phần.");
+        assertThat(response).contains("event:speech","Mình hiểu cách bạn tách các trách nhiệm.");
+        var next=state(id);
+        assertThat(next.path("prompt").path("sequenceNo").asInt()).isEqualTo(2);
+        assertThat(next.toString()).contains("Mình hiểu cách bạn tách các trách nhiệm.");
+        assertThat(next.path("turns")).hasSize(4);
+    }
+
     @Test void streamingFailureKeepsAnswerAndSameRequestCanResume() throws Exception {
         when(conversationAi.stream(anyString(), any())).thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI timeout"));
         String id = start(), first = prompt(state(id));
@@ -347,11 +362,17 @@ class InterviewFlowTests {
         verifyNoInteractions(conversationAi);
     }
 
-    @Test void finishPreservesTranscriptAndGradesExactlyOnceWithUnansweredQuestions() throws Exception {
+    @Test void attemptCompletesOnlyAfterAllQuestionsAndGradesExactlyOnce() throws Exception {
         excludeEarlierGradingJobs();
         exam.setMainQuestionCount(2); exams.saveAndFlush(exam); addQuestion("Câu chưa trả lời?");
         when(conversationAi.stream(anyString(), any())).thenReturn(new InterviewAiClient.Decision(false, "", "Đủ rõ"));
         String id = start(); stream(id, prompt(state(id)), "FINISH-EVIDENCE");
+        mvc.perform(post("/api/v1/interviews/" + id + "/finish").header("Authorization", token))
+                .andExpect(status().isConflict());
+        assertThat(state(id).path("status").asText()).isEqualTo("IN_PROGRESS");
+        assertThat(state(id).path("completedQuestions").asInt()).isEqualTo(1);
+        stream(id, prompt(state(id)), "SECOND-FINISH-EVIDENCE");
+        assertThat(state(id).path("status").asText()).isEqualTo("COMPLETED");
         for (int i = 0; i < 2; i++) mvc.perform(post("/api/v1/interviews/" + id + "/finish").header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
         assertThat(state(id).toString()).contains("FINISH-EVIDENCE");
@@ -370,6 +391,68 @@ class InterviewFlowTests {
         var context = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(conversationAi, times(2)).stream(context.capture(), any());
         assertThat(context.getAllValues().getLast()).contains("EARLIER-MAIN-ANSWER", "CURRENT-MAIN-ANSWER");
+    }
+
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"VAGUE","MISSING","CONTRADICTION"})
+    void streamingPersistsEachReasonAndReturnsTheContextualQuestion(String reason)throws Exception {
+        when(conversationAi.stream(anyString(),any())).thenReturn(new InterviewAiClient.Decision(true,"Em giải thích rõ ý vừa nói được không?",reason));
+        String id=start();stream(id,prompt(state(id)),"Một ý chưa rõ.");
+        var current=state(id);assertThat(current.path("prompt").path("kind").asText()).isEqualTo("FOLLOWUP_QUESTION");
+        assertThat(current.path("turns").get(2).path("followupReason").asText()).isEqualTo(reason);
+    }
+    @Test void conversationalCapStillAcknowledgesButNeverCreatesAThirdFollowup()throws Exception {
+        when(conversationAi.stream(anyString(),any())).thenReturn(new InterviewAiClient.Decision(true,"Em làm rõ thêm một ý được không?","MISSING"),
+            new InterviewAiClient.Decision(true,"Em nêu một ví dụ được không?","VAGUE"),
+            new InterviewAiClient.Decision(true,"Câu xoáy thứ ba không được phép?","MISSING"));
+        String id=start();for(int i=0;i<3;i++)stream(id,prompt(state(id)),"Nội dung lượt "+i);
+        var current=state(id);assertThat(current.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(current.path("followupsUsed").asInt()).isEqualTo(2);assertThat(current.toString()).doesNotContain("Câu xoáy thứ ba");
+        var context=org.mockito.ArgumentCaptor.forClass(String.class);verify(conversationAi,times(3)).stream(context.capture(),any());
+        assertThat(json.readTree(context.getValue()).path("followupAllowed").asBoolean()).isFalse();
+    }
+    @Test void serverSealsLatestCheckpointAtDeadlineRejectsLateChangesAndCanContinue()throws Exception {
+        String id=start(),first=prompt(state(id));begin(id,first);
+        checkpoint(id,first,2,"Phần nói mới nhất.",204);checkpoint(id,first,1,"Bản cũ.",204);
+        var question=turns.findById(UUID.fromString(first)).orElseThrow();question.setResponseDeadlineAt(OffsetDateTime.now().minusSeconds(1));turns.saveAndFlush(question);
+        store.advanceSystem(UUID.fromString(id));
+        var saved=state(id);assertThat(saved.path("needsContinuation").asBoolean()).isTrue();
+        assertThat(saved.toString()).contains("Phần nói mới nhất.").doesNotContain("Bản cũ.");
+        checkpoint(id,first,3,"Nội dung đến muộn.",409);
+        mvc.perform(post("/api/v1/interviews/"+id+"/turns/stream").header("Authorization",token).contentType("application/json")
+            .content(body(Map.of("promptId",first,"text","Nội dung đến muộn.")))).andExpect(status().isConflict());
+        when(conversationAi.stream(anyString(),any())).thenReturn(new InterviewAiClient.Decision(false,"","SUFFICIENT","Tôi đã ghi nhận phần em trình bày."));
+        assertThat(stream(id,first,"Phần nói mới nhất.")).contains("event:complete");
+        assertThat(state(id).path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(state(id).path("turns").findValuesAsText("text").stream().filter("Phần nói mới nhất."::equals)).hasSize(1);
+    }
+    @Test void draftEndpointsEnforceOwnershipAuthenticationAndValidation()throws Exception {
+        String id=start(),first=prompt(state(id)),url="/api/v1/interviews/"+id+"/draft";begin(id,first);
+        String payload=body(Map.of("promptId",first,"revision",1,"text","Một ý."));
+        mvc.perform(put(url).contentType("application/json").content(payload)).andExpect(status().isUnauthorized());
+        mvc.perform(put(url).header("Authorization",token(user("STUDENT"))).contentType("application/json").content(payload)).andExpect(status().isForbidden());
+        checkpoint(id,first,-1,"Nội dung",400);checkpoint(id,first,1,"x".repeat(12001),400);
+        mvc.perform(put("/api/v1/interviews/"+UUID.randomUUID()+"/draft").header("Authorization",token).contentType("application/json").content(payload)).andExpect(status().isNotFound());
+    }
+    @Test @org.springframework.security.test.context.support.WithMockUser(roles="LECTURER")
+    void aLecturerCannotUseTheStudentConversationEndpoint()throws Exception {
+        mvc.perform(post("/api/v1/interviews/"+UUID.randomUUID()+"/finish")).andExpect(status().isForbidden());
+    }
+    @Test void providerFallbackKeepsTranscriptAndRecordsWhyTheQuestionAdvanced()throws Exception {
+        when(conversationAi.stream(anyString(),any())).thenReturn(new InterviewAiClient.Decision(false,"","AI_UNAVAILABLE","Tôi đã ghi nhận phần trình bày của em."));
+        String id=start(),first=prompt(state(id));
+        assertThat(stream(id,first,"Bằng chứng vẫn phải giữ khi AI lỗi.")).contains("event:complete","event:speech");
+        var current=state(id);assertThat(current.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(current.toString()).contains("Bằng chứng vẫn phải giữ khi AI lỗi.");
+        var answer=turns.findFirstByReplyToTurnIdAndSpeaker(UUID.fromString(first),"STUDENT").orElseThrow();
+        var request=requests.findFirstByInputTurnIdAndRequestTypeOrderByRequestedAtDesc(answer.getId(),"FOLLOWUP_GENERATION").orElseThrow();
+        assertThat(request.getParameters().path("fallback").asBoolean()).isTrue();
+    }
+
+    private void checkpoint(String id,String prompt,long revision,String text,int status)throws Exception {
+        mvc.perform(put("/api/v1/interviews/"+id+"/draft").header("Authorization",token).contentType("application/json")
+            .content(body(Map.of("promptId",prompt,"revision",revision,"text",text)))).andExpect(status().is(status));
     }
 
     private String stream(String id, String prompt, String text) throws Exception {
@@ -401,7 +484,7 @@ class InterviewFlowTests {
         verify(conversationAi, times(1)).stream(anyString(), any());
     }
 
-    @Test void finishingDuringStreamNeverReopensTheAttemptWhenAiReturnsLate() throws Exception {
+    @Test void deadlineDuringStreamNeverReopensTheAttemptWhenAiReturnsLate() throws Exception {
         var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
         when(conversationAi.stream(anyString(), any())).thenAnswer(invocation -> {
             entered.countDown(); assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
@@ -414,6 +497,10 @@ class InterviewFlowTests {
         try {
             assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
             mvc.perform(post("/api/v1/interviews/" + id + "/finish").header("Authorization", token))
+                    .andExpect(status().isConflict());
+            var schedule = candidates.findById(candidate.getId()).orElseThrow();
+            schedule.setScheduledEnd(OffsetDateTime.now().minusSeconds(1)); candidates.saveAndFlush(schedule);
+            mvc.perform(post("/api/v1/interviews/" + id + "/finish").header("Authorization", token))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
         } finally { release.countDown(); }
         result.getAsyncResult(10000); mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
@@ -421,6 +508,19 @@ class InterviewFlowTests {
         assertThat(finished.path("status").asText()).isEqualTo("COMPLETED");
         assertThat(finished.path("turns")).hasSize(2);
         assertThat(finished.toString()).contains("KEPT-WHEN-FINISHING").doesNotContain("Vì sao câu này không được hỏi nữa?");
+    }
+
+    @Test void studentCannotFinishBeforeAnyAnswerAndCannotFinishInTheMiddleOfAFollowup() throws Exception {
+        String id=start(),first=prompt(state(id));
+        mvc.perform(post("/api/v1/interviews/"+id+"/finish").header("Authorization",token)).andExpect(status().isConflict());
+        assertThat(state(id).path("prompt").path("id").asText()).isEqualTo(first);
+        when(conversationAi.stream(anyString(),any())).thenReturn(new InterviewAiClient.Decision(true,"Em giải thích thêm ý đó được không?","VAGUE"));
+        stream(id,first,"Một ý cần được làm rõ.");
+        String followup=prompt(state(id));
+        mvc.perform(post("/api/v1/interviews/"+id+"/finish").header("Authorization",token)).andExpect(status().isConflict());
+        assertThat(state(id).path("prompt").path("id").asText()).isEqualTo(followup);
+        assertThat(state(id).path("status").asText()).isEqualTo("IN_PROGRESS");
+        assertThat(attempts.findById(UUID.fromString(id)).orElseThrow().getGradingStatus()).isNull();
     }
 
     private void excludeEarlierGradingJobs() {

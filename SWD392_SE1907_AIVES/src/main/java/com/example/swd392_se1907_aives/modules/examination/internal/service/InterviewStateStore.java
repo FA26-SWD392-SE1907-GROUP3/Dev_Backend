@@ -51,6 +51,7 @@ public class InterviewStateStore {
     private final ObjectMapper json;
     private final InterviewAudioStorage audio;
     private final InterviewAiClient ai;
+    private final com.example.swd392_se1907_aives.modules.examination.internal.repository.InterviewAnswerDraftRepository drafts;
 
     private record Owned(
             ExamAttempt attempt,
@@ -60,7 +61,7 @@ public class InterviewStateStore {
 
     public record AnswerPlan(UUID turnId, UUID questionId, String text) {}
 
-    public record DecisionPlan(UUID requestId, UUID answerTurnId, String context) {}
+    public record DecisionPlan(UUID requestId, UUID answerTurnId, String context, boolean followupAllowed) {}
 
     public record SpeechPlan(UUID requestId, UUID turnId, String text, String cachedKey) {}
 
@@ -84,20 +85,29 @@ public class InterviewStateStore {
     }
 
     @Transactional
+    public void checkpoint(UUID attemptId, UUID promptId, long revision, String text) {
+        Owned owned = load(attemptId, true);
+        normalize(owned);
+        var prompt = activePrompt(current(owned), promptId);
+        var now = OffsetDateTime.now();
+        if (prompt.getResponseDeadlineAt() == null || !now.isBefore(prompt.getResponseDeadlineAt()))
+            throw conflict("Đã hết thời gian trả lời.");
+        var saved = drafts.findById(promptId).orElse(null);
+        if (saved != null && revision <= saved.getRevision()) return;
+        if (saved == null) {
+            saved = new com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.InterviewAnswerDraft();
+            saved.setPromptId(promptId); saved.setAttemptId(attemptId);
+        }
+        saved.setRevision(revision); saved.setText(text.strip()); saved.setUpdatedAt(now);
+        drafts.save(saved);
+    }
+
+    @Transactional
     public State finishConversation(UUID attemptId) {
         Owned owned = load(attemptId, true);
-        if (!"IN_PROGRESS".equals(owned.attempt().getStatus())) return view(owned);
-        // Preserve submitted evidence; unanswered questions are included as unanswered in grading.
-        for (var question : owned.questions()) {
-            if (terminal(question)) continue;
-            var latest = last(history(question));
-            if (latest != null && "AI".equals(latest.getSpeaker())) {
-                latest.setEndedAt(OffsetDateTime.now());
-                turns.save(latest);
-            }
-            finish(question, "FINISHED");
-        }
         normalize(owned);
+        if ("IN_PROGRESS".equals(owned.attempt().getStatus()))
+            throw conflict("Chưa hoàn thành các câu hỏi. Bài thi sẽ tự kết thúc khi hoàn thành hoặc hết giờ.");
         return view(owned);
     }
 
@@ -179,6 +189,7 @@ public class InterviewStateStore {
         answer.setEndedAt(spoken ? null : now);
         answer.setAudioObjectKey(null);
         turns.saveAndFlush(answer);
+        drafts.deleteById(promptId);
         prompt.setEndedAt(now);
         turns.save(prompt);
         question.setStatus(spoken ? "ANSWERING" : "ASKING");
@@ -226,6 +237,15 @@ public class InterviewStateStore {
 
     @Transactional
     public DecisionPlan claimDecision(UUID attemptId, UUID answerId) {
+        return claimDecision(attemptId, answerId, false);
+    }
+
+    @Transactional
+    public DecisionPlan claimConversationDecision(UUID attemptId, UUID answerId) {
+        return claimDecision(attemptId, answerId, true);
+    }
+
+    private DecisionPlan claimDecision(UUID attemptId, UUID answerId, boolean conversational) {
         Owned owned = load(attemptId, true);
         normalize(owned);
         var question = current(owned);
@@ -236,7 +256,7 @@ public class InterviewStateStore {
                 || !"STUDENT".equals(answer.getSpeaker())
                 || !"SUCCEEDED".equals(answer.getSpeechStatus()))
             throw conflict("Không có câu trả lời đã lưu cần tiếp tục.");
-        if (!canFollowup(owned, question)
+        if ((!conversational && !canFollowup(owned, question))
                 || !OffsetDateTime.now().isBefore(owned.candidate().getScheduledEnd())) {
             finish(question, "FINISHED");
             normalize(owned);
@@ -263,6 +283,8 @@ public class InterviewStateStore {
                                     followupsFor(question),
                                     "maxFollowups",
                                     owned.exam().getMaxFollowupsPerQuestion(),
+                                    "followupAllowed",
+                                    canFollowup(owned, question),
                                     "scope",
                                     "Giới hạn hỏi xoáy cho câu chính hiện tại, đồng thời không vượt"
                                             + " tổng giới hạn của lượt thi",
@@ -272,12 +294,14 @@ public class InterviewStateStore {
                                             .map(
                                                     t ->
                                                             Map.of(
+                                                                    "kind", t.getKind(),
+                                                                    "questionId", t.getAttemptQuestionId(),
                                                                     "speaker",
                                                                     t.getSpeaker(),
                                                                     "text",
                                                                     t.getTextContent()))
                                             .toList()));
-            return new DecisionPlan(request.getId(), answerId, context);
+            return new DecisionPlan(request.getId(), answerId, context, canFollowup(owned, question));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -303,6 +327,10 @@ public class InterviewStateStore {
             completeRequest(request, null, "Lượt thi đã chuyển trạng thái.");
             return;
         }
+        request.setParameters(json.valueToTree(Map.of(
+                "decision", decision.askFollowup() ? "FOLLOW_UP" : "NEXT",
+                "reason", Objects.toString(decision.reason(), ""),
+                "fallback", "AI_UNAVAILABLE".equals(decision.reason()))));
         if (decision.askFollowup()
                 && canFollowup(owned, question)
                 && OffsetDateTime.now().isBefore(owned.candidate().getScheduledEnd())) {
@@ -333,6 +361,15 @@ public class InterviewStateStore {
             questions.save(question);
             completeRequest(request, prompt.getId(), null);
         } else {
+            if(decision.feedback()!=null&&!decision.feedback().isBlank()){
+                var acknowledgement=new InterviewTurn();
+                acknowledgement.setAttemptQuestionId(question.getId());
+                acknowledgement.setTurnNo(answer.getTurnNo()+1);acknowledgement.setSpeaker("AI");
+                acknowledgement.setKind("SYSTEM_NOTE");acknowledgement.setFollowupNumber(0);
+                acknowledgement.setReplyToTurnId(answer.getId());acknowledgement.setTextContent(decision.feedback());
+                acknowledgement.setSpeechStatus("NONE");acknowledgement.setAiModelName(ai.followupModel());
+                acknowledgement.setCreatedAt(OffsetDateTime.now());turns.saveAndFlush(acknowledgement);
+            }
             finish(question, "FINISHED");
             completeRequest(request, null, null);
         }
@@ -444,6 +481,9 @@ public class InterviewStateStore {
                         latest.getId(), "STT", null, "Xử lý bản ghi bị gián đoạn. Hãy thử lại.");
             }
             if (!now.isBefore(owned.candidate().getScheduledEnd())) {
+                if (latest != null && "AI".equals(latest.getSpeaker()) && !"SYSTEM_NOTE".equals(latest.getKind())) {
+                    if (sealDraft(owned, question, latest, now)) latest = last(history(question));
+                }
                 finish(
                         question,
                         latest != null
@@ -467,6 +507,7 @@ public class InterviewStateStore {
             if (prompt != null
                     && prompt.getResponseDeadlineAt() != null
                     && !now.isBefore(prompt.getResponseDeadlineAt())) {
+                if (sealDraft(owned, question, prompt, now)) return;
                 finish(question, "TIMED_OUT");
                 continue;
             }
@@ -495,6 +536,23 @@ public class InterviewStateStore {
         attempts.save(owned.attempt());
         owned.candidate().setStatus("COMPLETED");
         candidates.save(owned.candidate());
+    }
+
+    /** Seal only server-received text; timestamps sent by the browser are never trusted. */
+    private boolean sealDraft(Owned owned, AttemptQuestion question, InterviewTurn prompt, OffsetDateTime now) {
+        var saved = drafts.findById(prompt.getId()).orElse(null);
+        if (saved == null || !owned.attempt().getId().equals(saved.getAttemptId()) || saved.getText().isBlank()) return false;
+        var answer = new InterviewTurn();
+        answer.setAttemptQuestionId(question.getId()); answer.setTurnNo(prompt.getTurnNo() + 1);
+        answer.setSpeaker("STUDENT"); answer.setKind(prompt.getFollowupNumber() == 0 ? "MAIN_ANSWER" : "FOLLOWUP_ANSWER");
+        answer.setFollowupNumber(prompt.getFollowupNumber()); answer.setReplyToTurnId(prompt.getId());
+        answer.setTextContent(saved.getText()); answer.setSpeechStatus("SUCCEEDED");
+        answer.setCreatedAt(now); answer.setStartedAt(prompt.getStartedAt()); answer.setEndedAt(prompt.getResponseDeadlineAt());
+        turns.saveAndFlush(answer); drafts.delete(saved);
+        prompt.setEndedAt(prompt.getResponseDeadlineAt()); turns.save(prompt);
+        question.setStatus("ASKING"); questions.save(question);
+        owned.attempt().setLastActivityAt(now); attempts.save(owned.attempt());
+        return true;
     }
 
     private State view(Owned owned) {
@@ -574,7 +632,8 @@ public class InterviewStateStore {
                                     turn.getFollowupNumber(),
                                     turn.getTextContent(),
                                     turn.getSpeechStatus(),
-                                    turn.getAudioObjectKey() != null));
+                                    turn.getAudioObjectKey() != null,
+                                    turn.getFollowupReason()));
         int followups =
                 (int)
                         allTurns.stream()

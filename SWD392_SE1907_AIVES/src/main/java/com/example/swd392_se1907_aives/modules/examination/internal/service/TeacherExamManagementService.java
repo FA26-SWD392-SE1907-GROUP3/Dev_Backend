@@ -20,6 +20,11 @@ public interface TeacherExamManagementService {
 
     CandidateView reschedule(UUID id, UUID candidateId, Schedule request);
 
+    CandidateView grantRetake(UUID id, UUID candidateId,
+            com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeRequest request);
+
+    List<com.example.swd392_se1907_aives.modules.examination.internal.dto.TeacherExamManagementDtos.RetakeView> retakes(UUID id, UUID candidateId);
+
     void cancelCandidate(UUID id, UUID candidateId);
 
     void removeDraft(UUID id);

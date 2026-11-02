@@ -22,6 +22,7 @@ public class UserResponse {
     private String email;
     private String role;
     private boolean active;
+    private String registrationStatus;
     private OffsetDateTime createdAt;
 
     public static UserResponse from(User u) {
@@ -29,7 +30,8 @@ public class UserResponse {
                 .id(u.getId())
                 .fullName(u.getFullName())
                 .email(u.getEmail())
-                .role(u.getRole())
+                .role(u.isPendingRegistration() ? null : u.getRole())
+                .registrationStatus(u.isPendingRegistration() ? "PENDING" : "APPROVED")
                 .active(Boolean.TRUE.equals(u.getIsActive()))
                 .createdAt(u.getCreatedAt())
                 .build();

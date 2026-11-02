@@ -27,7 +27,10 @@ public class QuestionSchemaMigration implements ApplicationRunner {
             if (!"PostgreSQL".equals(connection.getMetaData().getDatabaseProductName())) return;
         }
         new ResourceDatabasePopulator(
-                        new ClassPathResource("db/migration/06_whole_attempt_rubric.sql"))
+                        new ClassPathResource("db/migration/06_whole_attempt_rubric.sql"),
+                        new ClassPathResource("db/migration/07_registration_approval.sql"),
+                        new ClassPathResource("db/migration/08_interview_answer_drafts.sql"),
+                        new ClassPathResource("db/migration/09_exam_retake_grants.sql"))
                 .execute(dataSource);
     }
 }

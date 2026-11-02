@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface UserService {
+    UserResponse approveRegistration(UUID id, com.example.swd392_se1907_aives.modules.identity.internal.domain.enums.RoleName role);
     List<UserResponse> getAllUsers();
 
     UserResponse getUserById(UUID id);

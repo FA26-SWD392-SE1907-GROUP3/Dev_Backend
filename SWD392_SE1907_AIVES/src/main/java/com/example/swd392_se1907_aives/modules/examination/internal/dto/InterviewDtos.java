@@ -15,6 +15,10 @@ public final class InterviewDtos {
 
     public record AnswerRequest(@NotNull UUID promptId, @NotBlank @Size(max = 12000) String text) {}
 
+    public record DraftRequest(@NotNull UUID promptId,
+            @jakarta.validation.constraints.Min(0) long revision,
+            @NotNull @Size(max = 12000) String text) {}
+
     public record ContinueRequest(@NotNull UUID answerTurnId) {}
 
     public record Prompt(
@@ -35,7 +39,8 @@ public final class InterviewDtos {
             int followupNumber,
             String text,
             String speechStatus,
-            boolean hasAudio) {}
+            boolean hasAudio,
+            String followupReason) {}
 
     public record State(
             UUID attemptId,

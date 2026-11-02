@@ -15,6 +15,7 @@ public final class MaterialDtos {
             OffsetDateTime uploadedAt) {}
 
     public record ChunkView(UUID id, int chunkIndex, String content, Integer pageNumber) {}
+    public record TextPreview(String content) {}
 
     public record Rename(
             @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 255)

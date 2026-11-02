@@ -20,7 +20,7 @@ public final class ExamMapper {
                         : request.maxFollowupsPerStudent());
         exam.setSelectionMode(request.selectionMode() == null ? "RANDOM" : request.selectionMode());
         exam.setAnswerTimeLimitSeconds(
-                request.answerTimeLimitSeconds() == null ? 120 : request.answerTimeLimitSeconds());
+                request.answerTimeLimitSeconds() == null ? 60 : request.answerTimeLimitSeconds());
     }
 
     public static ExamView view(Exam e) {

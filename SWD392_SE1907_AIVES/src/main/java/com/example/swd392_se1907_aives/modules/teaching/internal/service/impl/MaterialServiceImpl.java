@@ -9,6 +9,7 @@ import com.example.swd392_se1907_aives.modules.teaching.internal.repository.Mate
 import com.example.swd392_se1907_aives.modules.teaching.internal.repository.QuestionGenerationMaterialRepository;
 import com.example.swd392_se1907_aives.modules.teaching.internal.service.MaterialService;
 import com.example.swd392_se1907_aives.modules.teaching.internal.service.MaterialTextExtractor;
+import com.example.swd392_se1907_aives.modules.teaching.internal.service.MaterialPreviewRenderer;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,7 @@ public class MaterialServiceImpl implements MaterialService {
     private final CourseRepository courses;
     private final CourseAccessService access;
     private final MaterialTextExtractor extractor;
+    private final MaterialPreviewRenderer renderer;
     private final Path root;
     private final TransactionTemplate transaction;
     private final QuestionGenerationMaterialRepository jobMaterials;
@@ -53,12 +55,14 @@ public class MaterialServiceImpl implements MaterialService {
             MaterialTextExtractor extractor,
             @Value("${app.materials.storage-dir:./storage/materials}") String storageDir,
             PlatformTransactionManager transactionManager,
-            QuestionGenerationMaterialRepository jobMaterials) {
+            QuestionGenerationMaterialRepository jobMaterials,
+            MaterialPreviewRenderer renderer) {
         this.materials = materials;
         this.chunks = chunks;
         this.courses = courses;
         this.access = access;
         this.extractor = extractor;
+        this.renderer = renderer;
         this.jobMaterials = jobMaterials;
         root = Path.of(storageDir).toAbsolutePath().normalize();
         transaction = new TransactionTemplate(transactionManager);
@@ -68,7 +72,7 @@ public class MaterialServiceImpl implements MaterialService {
 
     @Override
     public List<CourseMaterial> list(UUID courseId) {
-        requireCourse(courseId);
+        requireReadableCourse(courseId);
         return materials.findByCourseIdOrderByUploadedAtDesc(courseId);
     }
 
@@ -81,7 +85,7 @@ public class MaterialServiceImpl implements MaterialService {
                                 () ->
                                         new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu."));
-        access.requireTeacher(material.getCourseId());
+        requireReadableCourse(material.getCourseId());
         return material;
     }
 
@@ -90,7 +94,7 @@ public class MaterialServiceImpl implements MaterialService {
         requireCourse(courseId);
         if (file.isEmpty() || file.getSize() > 20L * 1024 * 1024)
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Chọn tệp PDF/DOCX từ 1 byte đến 20 MB.");
+                    HttpStatus.BAD_REQUEST, "Chọn tệp PDF/DOCX/PPT/PPTX từ 1 byte đến 20 MB.");
         String filename =
                 Optional.ofNullable(file.getOriginalFilename())
                         .orElse("document")
@@ -102,9 +106,10 @@ public class MaterialServiceImpl implements MaterialService {
                     HttpStatus.BAD_REQUEST, "Tên tệp quá dài (tối đa 255 ký tự).");
         String lower = filename.toLowerCase(Locale.ROOT);
         String mime =
-                lower.endsWith(".pdf") ? "application/pdf" : lower.endsWith(".docx") ? DOCX : null;
+                lower.endsWith(".pdf") ? "application/pdf" : lower.endsWith(".docx") ? DOCX
+                        : lower.endsWith(".pptx") ? PPTX : lower.endsWith(".ppt") ? PPT : null;
         if (mime == null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chỉ hỗ trợ PDF và DOCX.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chỉ hỗ trợ PDF, DOCX, PPT và PPTX.");
         Path destination = null;
         try {
             byte[] bytes = file.getBytes();
@@ -116,20 +121,21 @@ public class MaterialServiceImpl implements MaterialService {
                                             Math.min(5, bytes.length),
                                             java.nio.charset.StandardCharsets.US_ASCII)
                                     .equals("%PDF-")
+                            : PPT.equals(mime) ? bytes.length>=8 && java.util.Arrays.equals(java.util.Arrays.copyOf(bytes,8),new byte[]{(byte)0xd0,(byte)0xcf,0x11,(byte)0xe0,(byte)0xa1,(byte)0xb1,0x1a,(byte)0xe1})
                             : bytes.length > 4 && bytes[0] == 'P' && bytes[1] == 'K';
             if (!signature)
                 throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "Nội dung tệp không khớp định dạng PDF/DOCX.");
+                        HttpStatus.BAD_REQUEST, "Nội dung tệp không khớp định dạng PDF/DOCX/PPT/PPTX.");
             String key =
                     courseId
                             + "/"
                             + UUID.randomUUID()
-                            + (lower.endsWith(".pdf") ? ".pdf" : ".docx");
+                            + MaterialService.extension(mime);
             destination = path(key);
             Files.createDirectories(destination.getParent());
             Files.write(destination, bytes, StandardOpenOption.CREATE_NEW);
             // Validate that the upload is readable before saving metadata.
-            extractor.extract(destination, mime);
+            extractor.validate(destination, mime);
             CourseMaterial material = new CourseMaterial();
             material.setCourseId(courseId);
             material.setUploadedBy(access.current().getId());
@@ -145,7 +151,7 @@ public class MaterialServiceImpl implements MaterialService {
             cleanup(destination);
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Không đọc được tài liệu PDF/DOCX. Hãy kiểm tra tệp; PDF ảnh cần OCR.");
+                    "Không đọc được tài liệu PDF/DOCX/PPT/PPTX. Hãy kiểm tra tệp; PDF ảnh cần OCR.");
         } catch (NoSuchAlgorithmException e) {
             cleanup(destination);
             throw new IllegalStateException(e);
@@ -251,7 +257,7 @@ public class MaterialServiceImpl implements MaterialService {
                                         new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu."));
         access.requireTeacher(m.getCourseId());
-        String extension = "application/pdf".equals(m.getMimeType()) ? ".pdf" : ".docx";
+        String extension = MaterialService.extension(m.getMimeType());
         if (name.isBlank()
                 || name.length() > 255
                 || name.contains("/")
@@ -294,6 +300,7 @@ public class MaterialServiceImpl implements MaterialService {
                             @Override
                             public void afterCommit() {
                                 cleanup(original);
+                                cleanup(previewPath(m));
                             }
                         });
     }
@@ -319,6 +326,42 @@ public class MaterialServiceImpl implements MaterialService {
         access.requireTeacher(id);
         if (!courses.existsById(id))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy môn học.");
+    }
+
+    private void requireReadableCourse(UUID id) {
+        if("STUDENT".equals(access.current().getRole())) {
+            access.requireEnrolled(id);
+            if(!courses.findById(id).map(c->Boolean.TRUE.equals(c.getIsActive())).orElse(false))
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Môn học không còn mở để xem tài liệu.");
+        } else requireCourse(id);
+    }
+
+    private Path previewPath(CourseMaterial material) {return path(".previews/"+material.getId()+".pdf");}
+
+    @Override public Path preview(UUID id) {
+        var material=get(id);Path original=file(material);
+        if("application/pdf".equals(material.getMimeType()))return original;
+        if(!PPT.equals(material.getMimeType())&&!PPTX.equals(material.getMimeType()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Tài liệu này sử dụng bản xem văn bản.");
+        Path preview=previewPath(material),temporary=null;
+        if(Files.isRegularFile(preview))return preview;
+        try {
+            byte[] bytes=renderer.renderPowerPoint(original,material.getMimeType());
+            Files.createDirectories(preview.getParent());
+            temporary=Files.createTempFile(preview.getParent(),"preview-",".tmp");
+            Files.write(temporary,bytes);
+            try {Files.move(temporary,preview,java.nio.file.StandardCopyOption.ATOMIC_MOVE);}
+            catch(java.nio.file.FileAlreadyExistsException alreadyRendered) {/* The concurrent result is complete. */}
+            return preview;
+        } catch(IOException failure) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Không tạo được bản xem trước. Bạn vẫn có thể tải tệp gốc; hãy thử xem lại sau.");
+        } finally {cleanup(temporary);}
+    }
+
+    @Override public String textPreview(UUID id) {
+        var material=get(id);
+        try {return extractor.extract(file(material),material.getMimeType());}
+        catch(IOException failure){throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Không đọc được văn bản tài liệu. Bạn vẫn có thể tải tệp gốc.");}
     }
 
     private void cleanup(Path path) {

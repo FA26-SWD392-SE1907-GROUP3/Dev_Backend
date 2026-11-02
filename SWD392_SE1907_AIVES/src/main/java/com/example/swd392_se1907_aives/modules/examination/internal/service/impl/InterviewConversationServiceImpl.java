@@ -25,6 +25,10 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
         this.store = store; this.ai = ai;
     }
 
+    @Override public void checkpoint(UUID id, UUID promptId, long revision, String text) {
+        store.checkpoint(id, promptId, revision, text);
+    }
+
     @Override public SseEmitter answer(UUID id, UUID promptId, String text) {
         var answer = store.reserveConversationAnswer(id, promptId, text);
         return resume(id, answer.turnId());
@@ -37,17 +41,27 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy câu trả lời.");
         if (before.busy()) throw new ResponseStatusException(HttpStatus.CONFLICT, "AI đang xử lý câu trả lời đã lưu.");
         var plan = before.needsContinuation() && answerId.equals(before.answerTurnId())
-                ? store.claimDecision(id, answerId) : null;
+                ? store.claimConversationDecision(id, answerId) : null;
         var emitter = new SseEmitter(75000L);
         var finished = new AtomicBoolean();
         var task = new FutureTask<Void>(new DelegatingSecurityContextRunnable(() -> {
             try {
                 send(emitter, "saved", Map.of("answerTurnId", answerId));
+                String acknowledgement="";
                 if (plan != null) {
-                    var decision = ai.stream(plan.context(), delta -> send(emitter, "delta", Map.of("text", delta)));
+                    var decision = ai.stream(plan.context(), delta -> {
+                        if (plan.followupAllowed()) send(emitter, "delta", Map.of("text", delta));
+                    });
+                    if (decision.askFollowup() && !plan.followupAllowed())
+                        decision = new com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewAiClient.Decision(
+                                false, "", "SUFFICIENT", "Tôi đã ghi nhận phần trình bày của em. Chúng ta cùng chuyển sang nội dung tiếp theo.");
                     store.decisionCompleted(id, plan, decision);
+                    acknowledgement=decision.feedback()==null?"":decision.feedback();
                 }
                 State state = store.state(id);
+                if(!acknowledgement.isBlank())send(emitter,"speech",Map.of(
+                        "promptId",state.prompt()==null?"":state.prompt().id(),
+                        "text",acknowledgement+(state.prompt()==null?" Buổi vấn đáp đã kết thúc. Cảm ơn em đã trao đổi.":" "+state.prompt().text())));
                 if (state.prompt() != null && (plan == null || !state.prompt().kind().equals("FOLLOWUP_QUESTION")))
                     send(emitter, "delta", Map.of("text", state.prompt().text()));
                 send(emitter, "complete", state);

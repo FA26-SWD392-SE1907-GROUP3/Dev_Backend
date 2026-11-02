@@ -20,6 +20,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final AuthService authService;
 
+    @PostMapping("/register")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    public ApiResponse<com.example.swd392_se1907_aives.modules.identity.internal.domain.dto.response.RegistrationResponse> register(
+            @Valid @RequestBody com.example.swd392_se1907_aives.modules.identity.internal.domain.dto.request.RegistrationRequest request) {
+        return ApiResponse.<com.example.swd392_se1907_aives.modules.identity.internal.domain.dto.response.RegistrationResponse>builder()
+                .code(201).data(authService.register(request)).build();
+    }
+
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
         return ApiResponse.<AuthResponse>builder().data(authService.authenticate(request)).build();

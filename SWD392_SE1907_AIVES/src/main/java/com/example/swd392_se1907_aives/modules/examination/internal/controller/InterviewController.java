@@ -37,22 +37,37 @@ public class InterviewController {
     private final InterviewService service;
     private final InterviewConversationService conversation;
 
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/draft")
+    public ResponseEntity<Void> draft(@PathVariable UUID id,
+            @Valid @RequestBody com.example.swd392_se1907_aives.modules.examination.internal.dto.InterviewDtos.DraftRequest request) {
+        conversation.checkpoint(id, request.promptId(), request.revision(), request.text());
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
     @PostMapping(value = "/{id}/turns/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<SseEmitter> stream(@PathVariable UUID id, @Valid @RequestBody AnswerRequest request) {
-        return streamResponse(conversation.answer(id, request.promptId(), request.text()));
+    public ResponseEntity<SseEmitter> stream(@PathVariable UUID id, @Valid @RequestBody AnswerRequest request,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        return streamResponse(conversation.answer(id, request.promptId(), request.text()), response);
     }
 
     @PostMapping(value = "/{id}/continue/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<SseEmitter> resumeStream(@PathVariable UUID id, @Valid @RequestBody ContinueRequest request) {
-        return streamResponse(conversation.resume(id, request.answerTurnId()));
+    public ResponseEntity<SseEmitter> resumeStream(@PathVariable UUID id, @Valid @RequestBody ContinueRequest request,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        return streamResponse(conversation.resume(id, request.answerTurnId()), response);
     }
 
     @PostMapping("/{id}/finish")
     public State finish(@PathVariable UUID id) { return conversation.finish(id); }
 
-    private ResponseEntity<SseEmitter> streamResponse(SseEmitter emitter) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .header("X-Accel-Buffering", "no").body(emitter);
+    private ResponseEntity<SseEmitter> streamResponse(SseEmitter emitter,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        // Authorization and validation have completed. Commit headers on this request thread
+        // before MVC attaches the emitter and drains events produced on the AI worker thread.
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("X-Accel-Buffering", "no");
+        response.flushBuffer();
+        return ResponseEntity.ok().body(emitter);
     }
 
     @GetMapping("/{id}")
