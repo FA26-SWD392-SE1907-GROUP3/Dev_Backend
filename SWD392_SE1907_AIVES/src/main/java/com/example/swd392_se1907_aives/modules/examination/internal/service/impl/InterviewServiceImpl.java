@@ -6,6 +6,7 @@ import com.example.swd392_se1907_aives.modules.examination.internal.service.Inte
 import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewAudioStorage;
 import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewService;
 import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewStateStore;
+import com.example.swd392_se1907_aives.modules.examination.internal.service.InterviewDiagnostics;
 
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +36,7 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public State audioAnswer(UUID id, UUID promptId, MultipartFile file) {
+        try(var diagnosticScope=InterviewDiagnostics.scope(id,promptId,null)){
         ai.requireConfigured();
         var content = audio.validate(file);
         var plan = store.reserveAnswer(id, promptId, null, true);
@@ -50,6 +52,7 @@ public class InterviewServiceImpl implements InterviewService {
             throw e;
         }
         return continueAnswer(id, plan.turnId());
+        }
     }
 
     @Override
@@ -76,8 +79,13 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public byte[] speech(UUID id, UUID turnId) {
+        try(var diagnosticScope=InterviewDiagnostics.scope(id,turnId,null)){
         var plan = store.claimSpeech(id, turnId);
-        if (plan.cachedKey() != null) return audio.read(plan.cachedKey());
+        if (plan.cachedKey() != null) {
+            InterviewDiagnostics.event("tts.cache_hit","source","cache","cacheHit",true,"voiceId","unknown_cached","model","unknown_cached",
+                    "speed","unknown_cached","pitch","unknown_cached","sampleRate",24000,"format","wav");
+            return audio.read(plan.cachedKey());
+        }
         try {
             byte[] bytes = ai.speech(plan.text());
             String key = audio.save(id, turnId, bytes, "wav");
@@ -86,6 +94,7 @@ public class InterviewServiceImpl implements InterviewService {
         } catch (RuntimeException e) {
             store.speechFinished(id, plan, null, message(e));
             throw e;
+        }
         }
     }
 

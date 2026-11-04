@@ -34,7 +34,7 @@ public class AttemptGradingAiClient {
     public AttemptGradingAiClient(
             ObjectMapper json,
             @Value("${app.ai.api-key:}") String key,
-            @Value("${app.ai.grading-model:gpt-4.1-mini}") String model,
+            @Value("${app.ai.grading-model:gpt-6.1-sol}") String model,
             @Value("${app.interview.openai-base-url:https://api.openai.com/v1}") String baseUrl) {
         this.json = json;
         this.key = key;
@@ -100,6 +100,11 @@ public class AttemptGradingAiClient {
                                             true,
                                             "schema",
                                             schema)));
+            if ("gpt-6.1-sol".equals(model)) {
+                body = new java.util.LinkedHashMap<>(body);
+                body.put("reasoning", Map.of("effort", "medium"));
+                body.put("max_output_tokens", 12000);
+            }
             var request =
                     HttpRequest.newBuilder(endpoint)
                             .timeout(Duration.ofSeconds(90))

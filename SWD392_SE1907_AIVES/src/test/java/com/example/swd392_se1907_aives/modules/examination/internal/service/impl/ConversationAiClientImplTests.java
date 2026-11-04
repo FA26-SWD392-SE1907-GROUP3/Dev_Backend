@@ -59,16 +59,25 @@ class ConversationAiClientImplTests {
             assertThat(chunks).isEmpty();
         }finally{client.close();}
     }
-    @Test void quotaFailureFallsBackAndRequestUsesStrictSchemaWithoutStoringProviderData()throws Exception {
+    @ParameterizedTest @ValueSource(strings={"configured-model","gpt-6.1-sol"})
+    void quotaFailureFallsBackAndRequestUsesStrictSchemaWithoutStoringProviderData(String model)throws Exception {
         var server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
         var body=new java.util.concurrent.atomic.AtomicReference<String>();
         server.createContext("/responses",e->{body.set(new String(e.getRequestBody().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));e.sendResponseHeaders(429,-1);e.close();});server.start();
-        var client=client("http://127.0.0.1:"+server.getAddress().getPort());
+        var client=new ConversationAiClientImpl(json,"test-not-real",model,
+            "http://127.0.0.1:"+server.getAddress().getPort(),new ClassPathResource("prompts/interview-system.txt"),1);
         try {
             var result=client.stream("PRIVATE-CONTEXT",text->{});
             assertThat(result.askFollowup()).isFalse();assertThat(result.reason()).isEqualTo("AI_UNAVAILABLE");
             var sent=json.readTree(body.get());assertThat(sent.path("stream").asBoolean()).isTrue();assertThat(sent.path("store").asBoolean()).isFalse();
-            assertThat(sent.path("model").asText()).isEqualTo("configured-model");
+            assertThat(sent.path("model").asText()).isEqualTo(model);
+            if (model.equals("gpt-6.1-sol")) {
+                assertThat(sent.at("/reasoning/effort").asText()).isEqualTo("low");
+                assertThat(sent.path("max_output_tokens").asInt()).isEqualTo(4096);
+            } else {
+                assertThat(sent.has("reasoning")).isFalse();
+                assertThat(sent.path("max_output_tokens").asInt()).isEqualTo(900);
+            }
             assertThat(sent.at("/text/format/type").asText()).isEqualTo("json_schema");assertThat(sent.at("/text/format/strict").asBoolean()).isTrue();
         }finally{server.stop(0);client.close();}
     }

@@ -33,15 +33,22 @@ class OpenAiQuestionClientTests {
         server.start();url="http://127.0.0.1:"+server.getAddress().getPort()+"/responses";
     }
     @AfterEach void stop(){server.stop(0);}
-    @Test void usesResponsesStructuredOutputAndParsesCitedDrafts() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"test-model","gpt-6.1-sol"})
+    void usesResponsesStructuredOutputAndParsesCitedDrafts(String model) throws Exception {
         UUID chunk=UUID.randomUUID();
         String text=mapper.writeValueAsString(Map.of("questions",List.of(Map.of("content","Câu hỏi?","referenceAnswer","Đáp án","sourceChunkIds",List.of(chunk)))));
         responseBody=mapper.writeValueAsString(Map.of("status","completed","output",List.of(Map.of("type","message","content",List.of(Map.of("type","output_text","text",text))))));
-        var result=client().generate("[chunkId="+chunk+"] Source",1,"MEDIUM","");
+        var result=new OpenAiQuestionClient(mapper,"test-key",model,url).generate("[chunkId="+chunk+"] Source",1,"MEDIUM","");
         assertThat(result).hasSize(1);assertThat(result.getFirst().sourceChunkIds()).containsExactly(chunk);
         assertThat(received.get().path("store").asBoolean()).isFalse();
         assertThat(received.get().path("text").path("format").path("type").asText()).isEqualTo("json_schema");
         assertThat(received.get().path("text").path("format").path("strict").asBoolean()).isTrue();
+        assertThat(received.get().path("model").asText()).isEqualTo(model);
+        if(model.equals("gpt-6.1-sol")) {
+            assertThat(received.get().at("/reasoning/effort").asText()).isEqualTo("low");
+            assertThat(received.get().path("max_output_tokens").asInt()).isEqualTo(12000);
+        }
     }
     @Test void rateLimitDoesNotExposeProviderResponseOrApiKey(){
         responseStatus=429;responseBody="{\"error\":\"private upstream error\"}";

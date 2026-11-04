@@ -59,6 +59,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "app.ai.api-key=test-key-not-real","JWT_SECRET=interview_test_secret_at_least_32_characters_long"})
 @AutoConfigureMockMvc
 class InterviewFlowTests {
+    @Test void cloudVoiceIsOwnedAndCannotStartTheAnswerClockDuringTheGreeting()throws Exception{
+        String id=start(),prompt=prompt(state(id));
+        when(ai.speech(anyString())).thenReturn(wav());
+        mvc.perform(post("/api/v1/interviews/"+id+"/voice-ticket").header("Authorization",token).contentType("application/json").content(body(Map.of("promptId",prompt))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.ticket").isString());
+        mvc.perform(post("/api/v1/interviews/"+id+"/voice").header("Authorization",token).contentType("application/json").content(body(Map.of("promptId",prompt,"kind","GREETING"))))
+            .andExpect(status().isOk()).andExpect(content().contentType("audio/wav"));
+        assertThat(state(id).path("prompt").path("deadline").isNull()).isTrue();
+        assertThat(store.voiceTurnOpen(UUID.fromString(prompt))).isTrue();
+        verify(ai).speech(contains("Chào em"));
+        mvc.perform(post("/api/v1/interviews/"+id+"/voice").header("Authorization",token).contentType("application/json").content(body(Map.of("promptId",UUID.randomUUID(),"kind","PROMPT"))))
+            .andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/interviews/"+id+"/voice").header("Authorization",token(user("STUDENT"))).contentType("application/json").content(body(Map.of("promptId",prompt,"kind","PROMPT"))))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/interviews/"+id+"/voice").contentType("application/json").content(body(Map.of("promptId",prompt,"kind","PROMPT"))))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/interviews/"+id+"/voice").header("Authorization",token).contentType("application/json").content("{}"))
+            .andExpect(status().isBadRequest());
+    }
+    @Test void recordingFallbackRequiresAnActiveAnswerAndDoesNotSkipTheConversationService()throws Exception{
+        String id=start(),prompt=prompt(state(id));
+        var recording=new MockMultipartFile("file","answer.wav","audio/wav",wav());
+        mvc.perform(multipart("/api/v1/interviews/"+id+"/transcribe").file(recording).param("promptId",prompt).header("Authorization",token))
+                .andExpect(status().isConflict());
+        begin(id,prompt);when(ai.transcribe(any(),anyString(),anyString())).thenReturn("Nội dung nhận dạng chính thức.");
+        mvc.perform(multipart("/api/v1/interviews/"+id+"/transcribe").file(recording).param("promptId",prompt).header("Authorization",token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.text").value("Nội dung nhận dạng chính thức."));
+        assertThat(prompt(state(id))).isEqualTo(prompt);
+        verifyNoInteractions(conversationAi);
+        mvc.perform(multipart("/api/v1/interviews/"+id+"/transcribe").file(new MockMultipartFile("file","empty.wav","audio/wav",new byte[0])).param("promptId",prompt).header("Authorization",token))
+                .andExpect(status().isBadRequest());
+        var expired=turns.findById(UUID.fromString(prompt)).orElseThrow();
+        expired.setResponseDeadlineAt(OffsetDateTime.now().minusSeconds(1));turns.saveAndFlush(expired);
+        assertThat(store.voiceTurnOpen(UUID.fromString(prompt))).isFalse();
+    }
     static final Path STORAGE=Path.of("target","test-interviews-"+UUID.randomUUID()).toAbsolutePath();
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry){registry.add("app.interview.storage-dir",STORAGE::toString);}
     @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired JwtService jwt;

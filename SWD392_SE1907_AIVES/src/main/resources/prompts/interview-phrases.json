@@ -1,0 +1,7 @@
+{
+  "greeting": "Chào em, tôi là giám khảo AI của buổi vấn đáp hôm nay. Em cứ trình bày tự nhiên nhé. Nếu chưa rõ câu hỏi, em cứ hỏi lại tôi.",
+  "reminder": "Em cứ bình tĩnh, nói theo cách em hiểu về câu hỏi vừa rồi nhé.",
+  "closing": "Buổi vấn đáp đến đây là kết thúc. Cảm ơn em đã trao đổi.",
+  "fallback": "Tôi đã ghi nhận ý của em. Mình sang phần tiếp theo nhé.",
+  "noSpeech": "Tôi chưa nghe rõ. Em có thể nói lại giúp tôi được không?"
+}

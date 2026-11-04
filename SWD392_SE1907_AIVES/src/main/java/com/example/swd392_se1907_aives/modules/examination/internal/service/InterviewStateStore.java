@@ -100,6 +100,7 @@ public class InterviewStateStore {
         }
         saved.setRevision(revision); saved.setText(text.strip()); saved.setUpdatedAt(now);
         drafts.save(saved);
+        InterviewDiagnostics.event("transcript.checkpoint","attemptId",attemptId,"promptId",promptId,"textChars",saved.getText().length());
     }
 
     @Transactional
@@ -137,11 +138,41 @@ public class InterviewStateStore {
                             now.plusSeconds(owned.exam().getAnswerTimeLimitSeconds()),
                             owned.candidate().getScheduledEnd()));
             turns.save(prompt);
+            InterviewDiagnostics.event("answer.clock_started","attemptId",attemptId,"promptId",promptId,
+                    "answerLimitSeconds",owned.exam().getAnswerTimeLimitSeconds(),"deadlinePresent",true);
             question.setStatus("ANSWERING");
             if (question.getStartedAt() == null) question.setStartedAt(now);
             questions.save(question);
         }
         return view(owned);
+    }
+
+    @Transactional
+    public LivePermission conversationVoicePermission(UUID attemptId, UUID promptId) {
+        Owned owned = load(attemptId, true);
+        normalize(owned);
+        var prompt = activePrompt(current(owned), promptId);
+        // Listen for an interruption during the question without starting the answer clock.
+        var deadline = prompt.getResponseDeadlineAt() != null ? prompt.getResponseDeadlineAt()
+                : earlier(OffsetDateTime.now().plusSeconds(90L + owned.exam().getAnswerTimeLimitSeconds()), owned.candidate().getScheduledEnd());
+        if (!OffsetDateTime.now().isBefore(deadline)) throw conflict("Phiên micro đã hết hạn.");
+        return new LivePermission(owned.candidate().getStudentId(), promptId, deadline);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean voiceTurnOpen(UUID promptId) {
+        var prompt = turns.findById(promptId).orElse(null);
+        if (prompt == null || !"AI".equals(prompt.getSpeaker()) || "SYSTEM_NOTE".equals(prompt.getKind())) return false;
+        var question = questions.findById(prompt.getAttemptQuestionId()).orElse(null);
+        if (question == null || terminal(question)) return false;
+        var latest = last(history(question));
+        if (latest == null || !latest.getId().equals(promptId)) return false;
+        var attempt = attempts.findById(question.getAttemptId()).orElse(null);
+        if (attempt == null || !"IN_PROGRESS".equals(attempt.getStatus())) return false;
+        var candidate = candidates.findById(attempt.getCandidateId()).orElse(null);
+        var now = OffsetDateTime.now();
+        return candidate != null && now.isBefore(candidate.getScheduledEnd())
+                && (prompt.getResponseDeadlineAt() == null || now.isBefore(prompt.getResponseDeadlineAt()));
     }
 
     @Transactional
@@ -197,6 +228,8 @@ public class InterviewStateStore {
         owned.attempt().setLastActivityAt(now);
         attempts.save(owned.attempt());
         if (spoken) request(question.getId(), answer.getId(), "STT", ai.sttModel());
+        InterviewDiagnostics.event("transcript.saved","attemptId",attemptId,"promptId",promptId,"answerId",answer.getId(),
+                "inputChars",spoken?0:text.length(),"status",answer.getSpeechStatus());
         return new AnswerPlan(answer.getId(), question.getId(), answer.getTextContent());
     }
 
@@ -490,7 +523,8 @@ public class InterviewStateStore {
                                         && "STUDENT".equals(latest.getSpeaker())
                                         && "SUCCEEDED".equals(latest.getSpeechStatus())
                                 ? "FINISHED"
-                                : "TIMED_OUT");
+                                : "TIMED_OUT",
+                        "Đã đến giờ kết thúc ca thi.");
                 continue;
             }
             if (latest != null
@@ -549,6 +583,7 @@ public class InterviewStateStore {
         answer.setTextContent(saved.getText()); answer.setSpeechStatus("SUCCEEDED");
         answer.setCreatedAt(now); answer.setStartedAt(prompt.getStartedAt()); answer.setEndedAt(prompt.getResponseDeadlineAt());
         turns.saveAndFlush(answer); drafts.delete(saved);
+        InterviewDiagnostics.event("answer.deadline_sealed","attemptId",owned.attempt().getId(),"promptId",prompt.getId(),"answerId",answer.getId(),"textChars",saved.getText().length());
         prompt.setEndedAt(prompt.getResponseDeadlineAt()); turns.save(prompt);
         question.setStatus("ASKING"); questions.save(question);
         owned.attempt().setLastActivityAt(now); attempts.save(owned.attempt());
@@ -750,6 +785,10 @@ public class InterviewStateStore {
     }
 
     private void finish(AttemptQuestion q, String status) {
+        finish(q, status, "Đã hết thời gian trả lời câu trước.");
+    }
+
+    private void finish(AttemptQuestion q, String status, String timeoutMessage) {
         if ("TIMED_OUT".equals(status) && !terminal(q)) {
             var previous = last(history(q));
             var note = new InterviewTurn();
@@ -758,7 +797,7 @@ public class InterviewStateStore {
             note.setSpeaker("AI");
             note.setKind("SYSTEM_NOTE");
             note.setFollowupNumber(0);
-            note.setTextContent("Hết thời gian trả lời hoặc ca thi đã kết thúc.");
+            note.setTextContent(timeoutMessage);
             note.setSpeechStatus("NONE");
             note.setCreatedAt(OffsetDateTime.now());
             turns.save(note);

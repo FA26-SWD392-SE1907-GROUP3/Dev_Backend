@@ -30,11 +30,15 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
     }
 
     @Override public SseEmitter answer(UUID id, UUID promptId, String text) {
+        try(var diagnosticScope=InterviewDiagnostics.scope(id,promptId,null)){
+        InterviewDiagnostics.event("conversation.answer_received","inputChars",text.length());
         var answer = store.reserveConversationAnswer(id, promptId, text);
         return resume(id, answer.turnId());
+        }
     }
 
     @Override public SseEmitter resume(UUID id, UUID answerId) {
+        try(var diagnosticScope=InterviewDiagnostics.scope(id,null,answerId)){
         // Authorize and claim on the authenticated request thread, before any SSE bytes are sent.
         State before = store.state(id);
         if (before.turns().stream().noneMatch(t -> t.id().equals(answerId) && "STUDENT".equals(t.speaker())))
@@ -44,7 +48,10 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
                 ? store.claimConversationDecision(id, answerId) : null;
         var emitter = new SseEmitter(75000L);
         var finished = new AtomicBoolean();
+        var diagnosticContext=InterviewDiagnostics.context();
         var task = new FutureTask<Void>(new DelegatingSecurityContextRunnable(() -> {
+            try(var workerDiagnosticScope=InterviewDiagnostics.restore(diagnosticContext)){
+            var diagnostic=InterviewDiagnostics.start("conversation.turn");
             try {
                 send(emitter, "saved", Map.of("answerTurnId", answerId));
                 String acknowledgement="";
@@ -65,7 +72,9 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
                 if (state.prompt() != null && (plan == null || !state.prompt().kind().equals("FOLLOWUP_QUESTION")))
                     send(emitter, "delta", Map.of("text", state.prompt().text()));
                 send(emitter, "complete", state);
+                diagnostic.event("end","status",state.status());
             } catch (RuntimeException error) {
+                diagnostic.event("error","errorType",error.getClass().getSimpleName());
                 String message = error instanceof ResponseStatusException status && status.getReason() != null
                         ? status.getReason() : "Hội thoại bị gián đoạn. Câu trả lời đã lưu, hãy thử tiếp tục.";
                 if (plan != null) {
@@ -75,6 +84,7 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
             } finally {
                 finished.set(true);
                 emitter.complete();
+            }
             }
         }), null);
         emitter.onCompletion(() -> { if (!finished.get()) task.cancel(true); });
@@ -86,6 +96,7 @@ public class InterviewConversationServiceImpl implements InterviewConversationSe
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Máy chủ đang bận. Câu trả lời đã lưu.");
         }
         return emitter;
+        }
     }
 
     @Override public State finish(UUID id) { return store.finishConversation(id); }

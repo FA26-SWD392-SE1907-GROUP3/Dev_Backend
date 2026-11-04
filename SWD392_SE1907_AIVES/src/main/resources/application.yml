@@ -60,15 +60,18 @@ server:
 app:
   ai:
     api-key: ${OPENAI_API_KEY:}
-    model: ${OPENAI_MODEL:gpt-4.1-mini}
+    model: ${OPENAI_MODEL:gpt-6.1-sol}
+    grading-model: ${OPENAI_GRADING_MODEL:gpt-6.1-sol}
     responses-url: ${OPENAI_RESPONSES_URL:https://api.openai.com/v1/responses}
   interview:
+    audio-disconnect-fix-enabled: ${INTERVIEW_AUDIO_DISCONNECT_FIX_ENABLED:true}
+    diagnostics-enabled: ${INTERVIEW_DIAGNOSTICS_ENABLED:false}
     storage-dir: ${INTERVIEW_STORAGE_DIR:./storage/interviews}
-    followup-model: ${OPENAI_INTERVIEW_MODEL:gpt-4.1-mini}
-    stt-model: ${OPENAI_STT_MODEL:gpt-4o-mini-transcribe}
+    followup-model: ${OPENAI_INTERVIEW_MODEL:gpt-6.1-sol}
+    stt-model: ${OPENAI_STT_MODEL:gpt-transcribe}
     realtime-model: ${OPENAI_REALTIME_STT_MODEL:gpt-live-transcribe}
-    tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
-    voice: ${OPENAI_TTS_VOICE:coral}
+    tts-model: ${OPENAI_TTS_MODEL:gpt-realtime-2.1-mini}
+    voice: ${OPENAI_TTS_VOICE:marin}
     openai-base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     timeouts-enabled: ${INTERVIEW_TIMEOUTS_ENABLED:true}
     stream-timeout-seconds: ${INTERVIEW_STREAM_TIMEOUT_SECONDS:60}

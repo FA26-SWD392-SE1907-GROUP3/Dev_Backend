@@ -33,7 +33,7 @@ public class OpenAiQuestionClient {
     public OpenAiQuestionClient(
             ObjectMapper mapper,
             @Value("${app.ai.api-key:}") String apiKey,
-            @Value("${app.ai.model:gpt-4.1-mini}") String model,
+            @Value("${app.ai.model:gpt-6.1-sol}") String model,
             @Value("${app.ai.responses-url:https://api.openai.com/v1/responses}") String url) {
         this.mapper = mapper;
         this.apiKey = apiKey;
@@ -122,6 +122,11 @@ public class OpenAiQuestionClient {
                                             true,
                                             "schema",
                                             schema)));
+            if ("gpt-6.1-sol".equals(model)) {
+                body = new java.util.LinkedHashMap<>(body);
+                body.put("reasoning", Map.of("effort", "low"));
+                body.put("max_output_tokens", 12000);
+            }
             HttpRequest request =
                     HttpRequest.newBuilder(endpoint)
                             .timeout(Duration.ofSeconds(90))

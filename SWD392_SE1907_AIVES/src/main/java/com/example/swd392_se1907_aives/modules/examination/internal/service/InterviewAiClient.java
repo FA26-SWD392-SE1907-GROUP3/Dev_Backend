@@ -47,6 +47,7 @@ public class InterviewAiClient {
             realtimeUrl;
     private final HttpClient http =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final RealtimeSpeechClient realtimeSpeech;
 
     public record Decision(boolean askFollowup, String question, String reason, String feedback) {
         public Decision(boolean askFollowup,String question,String reason){this(askFollowup,question,reason,"");}
@@ -56,10 +57,10 @@ public class InterviewAiClient {
             ObjectMapper mapper,
             @Value("${app.ai.api-key:}") String key,
             @Value("${app.interview.openai-base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${app.interview.followup-model:gpt-4.1-mini}") String followupModel,
-            @Value("${app.interview.stt-model:gpt-4o-mini-transcribe}") String sttModel,
-            @Value("${app.interview.tts-model:gpt-4o-mini-tts}") String ttsModel,
-            @Value("${app.interview.voice:coral}") String voice,
+            @Value("${app.interview.followup-model:gpt-6.1-sol}") String followupModel,
+            @Value("${app.interview.stt-model:gpt-transcribe}") String sttModel,
+            @Value("${app.interview.tts-model:gpt-realtime-2.1-mini}") String ttsModel,
+            @Value("${app.interview.voice:marin}") String voice,
             @Value("${app.interview.realtime-model:gpt-live-transcribe}") String realtimeModel,
             @Value(
                             "${app.interview.realtime-url:wss://api.openai.com/v1/realtime?intent=transcription}")
@@ -73,6 +74,7 @@ public class InterviewAiClient {
         this.voice = voice;
         this.realtimeModel = realtimeModel;
         this.realtimeUrl = realtimeUrl;
+        this.realtimeSpeech = new RealtimeSpeechClient(mapper, key, ttsModel, voice, this.baseUrl);
     }
 
     public boolean configured() {
@@ -86,6 +88,7 @@ public class InterviewAiClient {
     public String sttModel() {
         return sttModel;
     }
+    public String realtimeModel() { return realtimeModel; }
 
     public String ttsModel() {
         return ttsModel;
@@ -97,6 +100,7 @@ public class InterviewAiClient {
     }
 
     public Decision followup(String context) {
+        var diagnostic=InterviewDiagnostics.start("llm.legacy","model",followupModel,"inputChars",context.length());
         requireConfigured();
         try {
             var schema =
@@ -139,7 +143,14 @@ public class InterviewAiClient {
                                             true,
                                             "schema",
                                             schema)));
+            if ("gpt-6.1-sol".equals(followupModel)) {
+                body = new LinkedHashMap<>(body);
+                body.put("reasoning", Map.of("effort", "low"));
+                body.put("max_output_tokens", 4096);
+            }
             JsonNode response = mapper.readTree(json("/responses", body));
+            diagnostic.event("terminal","status",response.path("status").asText(),
+                    "finishReason",response.path("incomplete_details").path("reason").asText(response.path("status").asText("unknown")));
             if (!"completed".equals(response.path("status").asText()))
                 throw error(
                         HttpStatus.BAD_GATEWAY, "AI chưa hoàn tất câu hỏi tiếp theo. Hãy thử lại.");
@@ -160,6 +171,7 @@ public class InterviewAiClient {
                     reason = result.path("reason").asText().strip();
             if (ask && (question.isBlank() || question.length() > 2000) || reason.length() > 2000)
                 throw new IOException("Invalid decision");
+            diagnostic.event("validated","rawChars",text.length(),"messageChars",question.length(),"decision",ask?"FOLLOW_UP":"NEXT");
             return new Decision(ask, ask ? question : "", reason);
         } catch (ResponseStatusException e) {
             throw e;
@@ -172,12 +184,14 @@ public class InterviewAiClient {
     }
 
     public String transcribe(byte[] audio, String mime, String extension) {
+        var diagnostic=InterviewDiagnostics.start("stt.file","model",sttModel,"audioBytes",audio.length,"format",extension);
         requireConfigured();
         try {
             String boundary = "aives-" + UUID.randomUUID();
             ByteArrayOutputStream body = new ByteArrayOutputStream();
             field(body, boundary, "model", sttModel);
-            field(body, boundary, "language", "vi");
+            if ("gpt-transcribe".equals(sttModel)) field(body, boundary, "languages[]", "vi");
+            else field(body, boundary, "language", "vi");
             field(body, boundary, "response_format", "json");
             body.write(
                     ("--"
@@ -198,6 +212,7 @@ public class InterviewAiClient {
                             "multipart/form-data; boundary=" + boundary,
                             body.toByteArray());
             String text = mapper.readTree(response.body()).path("text").asText().strip();
+            diagnostic.event("final","httpStatus",response.statusCode(),"transcriptChars",text.length());
             if (text.isBlank())
                 throw error(
                         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -206,8 +221,10 @@ public class InterviewAiClient {
                 throw error(HttpStatus.UNPROCESSABLE_ENTITY, "Câu trả lời quá dài.");
             return text;
         } catch (ResponseStatusException e) {
+            diagnostic.event("error","errorType",e.getClass().getSimpleName());
             throw e;
         } catch (Exception e) {
+            diagnostic.event("error","errorType",e.getClass().getSimpleName());
             throw error(
                     HttpStatus.BAD_GATEWAY,
                     "Không chuyển được giọng nói thành văn bản. Bản ghi của bạn được giữ lại để thử"
@@ -216,10 +233,13 @@ public class InterviewAiClient {
     }
 
     public byte[] speech(String text) {
+        InterviewDiagnostics.event("tts.selected","source","live","model",ttsModel,"voiceId",voice,
+                "speed",1,"pitch","provider_default","sampleRate",24000,"format","pcm16_wav","textChars",text.length());
         requireConfigured();
         if (text.isBlank() || text.length() > 12000)
             throw error(
                     HttpStatus.UNPROCESSABLE_ENTITY, "Câu hỏi không hợp lệ để đọc bằng giọng nói.");
+        if (ttsModel.startsWith("gpt-realtime-")) return realtimeSpeech.speak(text);
         try {
             ByteArrayOutputStream pcm = new ByteArrayOutputStream();
             for (int offset = 0; offset < text.length(); ) {
@@ -247,6 +267,8 @@ public class InterviewAiClient {
                 offset = end;
             }
             byte[] samples = pcm.toByteArray();
+            InterviewDiagnostics.event("tts.legacy.ready","source","live","model",ttsModel,"voiceId",voice,
+                    "speed",1,"pitch","provider_default","sampleRate",24000,"format","pcm16_wav","audioBytes",samples.length);
             if (samples.length == 0 || samples.length > 20 * 1024 * 1024)
                 throw new IOException("Invalid speech length");
             ByteBuffer wav =
@@ -306,6 +328,8 @@ public class InterviewAiClient {
     }
 
     private HttpResponse<byte[]> send(String path, String mime, byte[] body) {
+        var diagnostic=InterviewDiagnostics.start(path.equals("/audio/speech")?"http.tts":path.equals("/audio/transcriptions")?"http.stt":"http.llm.legacy",
+                "timeoutMs",60000);
         try {
             var request =
                     HttpRequest.newBuilder(URI.create(baseUrl + path))
@@ -314,7 +338,8 @@ public class InterviewAiClient {
                             .header("Content-Type", mime)
                             .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                             .build();
-            var response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            var response = http.send(request, InterviewDiagnostics.observe(HttpResponse.BodyHandlers.ofByteArray(),diagnostic));
+            diagnostic.event("end","httpStatus",response.statusCode(),"responseBytes",response.body().length);
             if (response.statusCode() == 429)
                 throw error(
                         HttpStatus.SERVICE_UNAVAILABLE,

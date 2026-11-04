@@ -67,7 +67,14 @@ public class TeacherExamManagementServiceImpl implements TeacherExamManagementSe
     @Transactional
     public ExamView update(UUID id, ExamCreate request) {
         Exam exam = exam(id, true);
-        draft(exam);
+        if (!Set.of("DRAFT", "SCHEDULED", "CLOSED").contains(exam.getStatus())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Chỉ sửa cấu hình khi kỳ thi đang đóng hoặc chưa mở.");
+        }
+        if (attempts.existsByExamId(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Kỳ thi đã có thí sinh tham gia, không thể sửa cấu hình.");
+        }
         if (!exam.getCourseId().equals(request.courseId()))
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Không thể đổi môn học của kỳ thi đã tạo.");

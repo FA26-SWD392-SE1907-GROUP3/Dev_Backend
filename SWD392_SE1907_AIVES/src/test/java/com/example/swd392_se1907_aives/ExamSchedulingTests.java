@@ -89,6 +89,33 @@ class ExamSchedulingTests {
     @Test void enrolledStudentCanBeScheduledWithoutEnrollmentOption()throws Exception{
         enrollment("ACTIVE");assign(token,student.getEmail(),false,200);
     }
+    @Test void settingsCanBeEditedAfterClosingAnExamWithScheduledCandidates() throws Exception {
+        String candidate = assign(token, student.getEmail(), false, 200);
+        updateExamSettings().andExpect(status().isConflict());
+        mvc.perform(patch("/api/v1/exams/" + exam.getId() + "/close").header("Authorization", token))
+                .andExpect(status().isOk());
+        updateExamSettings().andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Updated settings"))
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+        assertThat(candidates.existsById(UUID.fromString(candidate))).isTrue();
+    }
+
+    @Test void settingsCannotBeEditedAfterACandidateHasStartedAndCompletedTheExam() throws Exception {
+        completedCandidate();
+        mvc.perform(patch("/api/v1/exams/" + exam.getId() + "/close").header("Authorization", token))
+                .andExpect(status().isOk());
+        updateExamSettings().andExpect(status().isConflict());
+        assertThat(exams.findById(exam.getId()).orElseThrow().getTitle()).isEqualTo("Scheduling test");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions updateExamSettings() throws Exception {
+        var settings = Map.of("courseId", course.getId(), "rubricId", exam.getRubricId(),
+                "title", "Updated settings", "mainQuestionCount", 1);
+        return mvc.perform(put("/api/v1/exams/" + exam.getId())
+                .header("Authorization", token).contentType("application/json")
+                .content(json.writeValueAsString(settings)));
+    }
+
     @Test void unauthorizedAndInvalidAccountsCannotBeEnrolledByScheduling()throws Exception{
         enrollments.deleteById(enrollmentId());
         assign(token(user("LECTURER")),student.getEmail(),true,403);

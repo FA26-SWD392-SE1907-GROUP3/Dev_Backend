@@ -17,6 +17,17 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 @RestControllerAdvice
 @lombok.extern.slf4j.Slf4j
 public class GlobalExceptionHandler {
+    @org.springframework.beans.factory.annotation.Value("${app.interview.audio-disconnect-fix-enabled:true}")
+    private boolean audioDisconnectFixEnabled=true;
+
+    @ExceptionHandler({org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
+            org.apache.catalina.connector.ClientAbortException.class})
+    public ResponseEntity<ApiResponse<String>> disconnectedAudio(Exception exception) {
+        if(!audioDisconnectFixEnabled)return fallback(exception);
+        // The response is unusable: writing another JSON body produces a second converter failure.
+        log.debug("Client disconnected while receiving response ({})",exception.getClass().getSimpleName());
+        return null;
+    }
     @ExceptionHandler({org.springframework.transaction.CannotCreateTransactionException.class,
         org.springframework.transaction.TransactionTimedOutException.class,
         org.springframework.dao.TransientDataAccessException.class,
@@ -46,7 +57,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<String>> uploadTooLarge(Exception e){return reply(HttpStatus.PAYLOAD_TOO_LARGE,"Tệp vượt giới hạn 20 MB.");}
     private ResponseEntity<ApiResponse<String>> reply(HttpStatusCode code,String message){
-        return ResponseEntity.status(code).body(ApiResponse.<String>builder().code(code.value()).message(message).build());
+        var response=ResponseEntity.status(code);
+        if(audioDisconnectFixEnabled)response.contentType(MediaType.APPLICATION_JSON);
+        return response.body(ApiResponse.<String>builder().code(code.value()).message(message).build());
     }
     @ExceptionHandler(BadCredentialsException.class) public ResponseEntity<ApiResponse<String>> auth(BadCredentialsException e){return reply(HttpStatus.UNAUTHORIZED,"Invalid credentials");}
     @ExceptionHandler(AccessDeniedException.class) public ResponseEntity<ApiResponse<String>> denied(AccessDeniedException e){return reply(HttpStatus.FORBIDDEN,"Tài khoản của bạn không có quyền thực hiện thao tác này.");}

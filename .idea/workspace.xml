@@ -6,43 +6,24 @@
   <component name="ChangeListManager">
     <list default="true" id="ae88e713-a492-46c0-8936-d1df674a9316" name="Changes" comment="Commit code auth">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/bootstrap/QuestionSchemaMigration.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/bootstrap/QuestionSchemaMigration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/controller/InterviewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/controller/InterviewController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/controller/TeacherExamManagementController.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/controller/TeacherExamManagementController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/dto/InterviewDtos.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/dto/InterviewDtos.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/dto/TeacherExamManagementDtos.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/dto/TeacherExamManagementDtos.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/mapper/ExamMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/mapper/ExamMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/bootstrap/web/GlobalExceptionHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/bootstrap/web/GlobalExceptionHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/config/LiveTranscriptionHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/config/LiveTranscriptionHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/AttemptGradingAiClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/AttemptGradingAiClient.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/InterviewAiClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/InterviewAiClient.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/InterviewConversationService.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/InterviewConversationService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/InterviewStateStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/InterviewStateStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/TeacherExamManagementService.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/TeacherExamManagementService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/AttemptGradingServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/AttemptGradingServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/AttemptServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/AttemptServiceImpl.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/ConversationAiClientImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/ConversationAiClientImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/ExamServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/ExamServiceImpl.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/InterviewConversationServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/InterviewConversationServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/StudentExamServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/StudentExamServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/InterviewServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/InterviewServiceImpl.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/TeacherExamManagementServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/TeacherExamManagementServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/controller/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/controller/AuthController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/controller/UserController.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/controller/UserController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/domain/dto/response/UserResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/domain/dto/response/UserResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/domain/entity/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/domain/entity/User.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/middlewares/JwtAuthenticationFilter.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/middlewares/JwtAuthenticationFilter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/repository/UserRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/repository/UserRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/AuthService.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/AuthService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/UserService.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/UserService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/impl/AuthServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/impl/AuthServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/impl/UserServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/identity/internal/service/impl/UserServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/controller/MaterialController.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/controller/MaterialController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/dto/MaterialDtos.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/dto/MaterialDtos.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/MaterialService.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/MaterialService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/MaterialTextExtractor.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/MaterialTextExtractor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/impl/MaterialServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/impl/MaterialServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/OpenAiQuestionClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/java/com/example/swd392_se1907_aives/modules/teaching/internal/service/OpenAiQuestionClient.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/resources/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/resources/prompts/interview-followup.txt" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/resources/prompts/interview-followup.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/resources/prompts/interview-system.txt" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/main/resources/prompts/interview-system.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/ExamSchedulingTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/ExamSchedulingTests.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/InterviewFlowTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/InterviewFlowTests.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/ConversationAiClientImplTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/modules/examination/internal/service/impl/ConversationAiClientImplTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/service/OpenAiQuestionClientTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/SWD392_SE1907_AIVES/src/test/java/com/example/swd392_se1907_aives/service/OpenAiQuestionClientTests.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -83,38 +64,38 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Application.TestPassword.executor": "Run",
-    "Maven.SWD392_SE1907_AIVES [clean].executor": "Run",
-    "Maven.SWD392_SE1907_AIVES [install].executor": "Run",
-    "Maven.SWD392_SE1907_AIVES [validate].executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "Spring Boot.Swd392Se1907AivesApplication.executor": "Run",
-    "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "main",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "D:/Dev_Backend",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "Project",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.0",
-    "settings.editor.selected.configurable": "reference.projectsettings.compiler.annotationProcessors"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.TestPassword.executor&quot;: &quot;Run&quot;,
+    &quot;Maven.SWD392_SE1907_AIVES [clean].executor&quot;: &quot;Run&quot;,
+    &quot;Maven.SWD392_SE1907_AIVES [install].executor&quot;: &quot;Run&quot;,
+    &quot;Maven.SWD392_SE1907_AIVES [validate].executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;Spring Boot.Swd392Se1907AivesApplication.executor&quot;: &quot;Run&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Dev_Backend&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.projectsettings.compiler.annotationProcessors&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "postgresql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="D:\Dev_Backend\SWD392_SE1907_AIVES\src\main\java\com\example\swd392_se1907_aives\domain" />
