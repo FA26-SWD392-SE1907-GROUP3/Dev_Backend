@@ -45,4 +45,15 @@ public class ExamAttempt {
     private OffsetDateTime gradingRequestedAt;
     @Column(name="graded_at")
     private OffsetDateTime gradedAt;
+
+    @Column(name="published_score", precision=6, scale=2)
+    private java.math.BigDecimal publishedScore;
+    @Column(name="published_max_score", precision=6, scale=2)
+    private java.math.BigDecimal publishedMaxScore;
+    @Column(name="published_feedback", columnDefinition="TEXT")
+    private String publishedFeedback;
+    @Column(name="published_at")
+    private OffsetDateTime publishedAt;
+    @Column(name="published_by")
+    private UUID publishedBy;
 }

@@ -98,6 +98,7 @@ class InterviewFlowTests {
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry){registry.add("app.interview.storage-dir",STORAGE::toString);}
     @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired JwtService jwt;
     @Autowired UserRepository users;@Autowired CourseRepository courses;@Autowired CourseEnrollmentRepository enrollments;
+    @Autowired com.example.swd392_se1907_aives.modules.teaching.internal.repository.CourseLecturerRepository lecturers;
     @Autowired ExamRepository exams;@Autowired ExamCandidateRepository candidates;@Autowired QuestionRepository questions;
     @Autowired ExamQuestionPoolRepository pool;@Autowired AttemptQuestionRepository assigned;@Autowired InterviewTurnRepository turns;
     @Autowired ExamAttemptRepository attempts;@Autowired RubricRepository rubrics;@Autowired RubricCriterionRepository criteria;
@@ -111,6 +112,10 @@ class InterviewFlowTests {
     @BeforeEach void setup(){
         student=user("STUDENT");teacher=user("LECTURER");token=token(student);
         course=new Course();course.setCode("V"+UUID.randomUUID().toString().substring(0,8));course.setName("Viva");course.setIsActive(true);course.setCreatedAt(OffsetDateTime.now());course=courses.saveAndFlush(course);
+        var assignment = new com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.CourseLecturer();
+        assignment.setId(new com.example.swd392_se1907_aives.modules.teaching.internal.domain.entity.CourseLecturerId(course.getId(), teacher.getId()));
+        assignment.setAssignedAt(OffsetDateTime.now());
+        lecturers.saveAndFlush(assignment);
         var enrollment=new CourseEnrollment();enrollment.setId(new CourseEnrollmentId(course.getId(),student.getId()));enrollment.setEnrollmentStatus("ACTIVE");enrollment.setEnrolledAt(OffsetDateTime.now());enrollments.saveAndFlush(enrollment);
         exam=new Exam();exam.setCourseId(course.getId());exam.setCreatedBy(teacher.getId());exam.setTitle("Viva test");exam.setStatus("ACTIVE");exam.setSelectionMode("RANDOM");exam.setMainQuestionCount(1);exam.setMaxFollowupsPerQuestion(2);exam.setAnswerTimeLimitSeconds(120);exam.setSlotDurationMinutes(20);exam.setExamLanguage("vi");exam.setExamTimezone("Asia/Ho_Chi_Minh");exam.setCreatedAt(OffsetDateTime.now());exam.setUpdatedAt(OffsetDateTime.now());exam=exams.saveAndFlush(exam);
         candidate=new ExamCandidate();candidate.setCourseId(course.getId());candidate.setExamId(exam.getId());candidate.setStudentId(student.getId());candidate.setStatus("REGISTERED");candidate.setScheduledStart(OffsetDateTime.now().minusMinutes(1));candidate.setScheduledEnd(OffsetDateTime.now().plusMinutes(20));candidate.setCreatedAt(OffsetDateTime.now());candidate=candidates.saveAndFlush(candidate);
@@ -305,31 +310,52 @@ class InterviewFlowTests {
         var payload=json.readTree(evidence.getValue());
         assertThat(payload.path("wholeAttempt")).hasSize(2);
         assertThat(evidence.getValue()).contains("EVIDENCE-FIRST-ANSWER","EVIDENCE-SECOND-ANSWER","PRIVATE-REFERENCE");
-        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token))
+        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token(teacher)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
             .andExpect(jsonPath("$.result.totalScore").value(8)).andExpect(jsonPath("$.result.maxScore").value(10))
             .andExpect(jsonPath("$.result.criteria.length()").value(1));
         grading.processPending();verify(gradingAi,times(1)).grade(anyString());
         mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token(user("STUDENT")))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token(user("LECTURER")))).andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token)).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token)).andExpect(status().isForbidden());
+        var url = "/api/v1/attempts/" + id + "/grading";
+        mvc.perform(get(url).header("Authorization", token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("AWAITING_PUBLICATION"))
+            .andExpect(jsonPath("$.result").doesNotExist()).andExpect(jsonPath("$.published").doesNotExist());
+        String finalGrade = body(Map.of("score", 9, "feedback", "Giảng viên đã đối chiếu hội thoại."));
+        mvc.perform(post(url + "/publish").header("Authorization", token).contentType("application/json").content(finalGrade))
+            .andExpect(status().isForbidden());
+        mvc.perform(post(url + "/publish").header("Authorization", token(user("LECTURER"))).contentType("application/json").content(finalGrade))
+            .andExpect(status().isForbidden());
+        mvc.perform(post(url + "/publish").header("Authorization", token(teacher)).contentType("application/json")
+                .content(body(Map.of("score", 11, "feedback", "Quá thang điểm"))))
+            .andExpect(status().isBadRequest());
+        mvc.perform(post(url + "/publish").header("Authorization", token(teacher)).contentType("application/json").content(finalGrade))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.published.score").value(9));
+        mvc.perform(get(url).header("Authorization", token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PUBLISHED"))
+            .andExpect(jsonPath("$.published.score").value(9))
+            .andExpect(jsonPath("$.published.feedback").value("Giảng viên đã đối chiếu hội thoại."))
+            .andExpect(jsonPath("$.result").doesNotExist());
+        mvc.perform(post(url + "/publish").header("Authorization", token(teacher)).contentType("application/json").content(finalGrade))
+            .andExpect(status().isConflict());
     }
 
     @Test void invalidAiGradeFailsWithoutPersistingPointsAndCanBeRetried()throws Exception {
         excludeEarlierGradingJobs();
         exam.setMaxFollowupsPerQuestion(0);exam.setMaxFollowupsPerStudent(0);exams.saveAndFlush(exam);
         String id=start();var first=state(id);
-        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token)).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token(teacher))).andExpect(status().isConflict());
         begin(id,prompt(first));answer(id,prompt(first),"Đáp án đã nộp",200);
         when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Điểm sai\",\"criteria\":[{\"sortOrder\":1,\"score\":99,\"feedback\":\"Vượt thang điểm\"}]}"));
         grading.processPending();
         var attempt=attempts.findById(UUID.fromString(id)).orElseThrow();
         assertThat(attempt.getGradingStatus()).isEqualTo("FAILED");assertThat(attempt.getGradingResult()).isNull();
-        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token))
+        mvc.perform(post("/api/v1/attempts/"+id+"/grading/retry").header("Authorization",token(teacher)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"));
         when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Đã đánh giá toàn bài\",\"criteria\":[{\"sortOrder\":1,\"score\":7,\"feedback\":\"Đạt yêu cầu\"}]}"));
         grading.processPending();
-        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token))
+        mvc.perform(get("/api/v1/attempts/"+id+"/grading").header("Authorization",token(teacher)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.result.totalScore").value(7));
     }
 
@@ -414,7 +440,7 @@ class InterviewFlowTests {
         when(gradingAi.grade(anyString())).thenReturn(json.readTree("{\"feedback\":\"Đã chấm\",\"criteria\":[{\"sortOrder\":1,\"score\":6,\"feedback\":\"Còn thiếu ý\"}]}"));
         grading.processPending(); grading.processPending();
         verify(gradingAi, times(1)).grade(contains("FINISH-EVIDENCE"));
-        mvc.perform(get("/api/v1/attempts/" + id + "/grading").header("Authorization", token))
+        mvc.perform(get("/api/v1/attempts/" + id + "/grading").header("Authorization", token(teacher)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.totalScore").value(6));
     }
 

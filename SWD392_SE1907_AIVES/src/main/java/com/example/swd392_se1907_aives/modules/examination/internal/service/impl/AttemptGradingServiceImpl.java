@@ -3,6 +3,8 @@ package com.example.swd392_se1907_aives.modules.examination.internal.service.imp
 import com.example.swd392_se1907_aives.modules.examination.internal.domain.entity.ExamAttempt;
 import com.example.swd392_se1907_aives.modules.examination.internal.dto.AttemptGradingDtos.GradingResult;
 import com.example.swd392_se1907_aives.modules.examination.internal.dto.AttemptGradingDtos.GradingView;
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.AttemptGradingDtos.PublishedGrade;
+import com.example.swd392_se1907_aives.modules.examination.internal.dto.AttemptGradingDtos.PublishRequest;
 import com.example.swd392_se1907_aives.modules.examination.internal.repository.AttemptQuestionRepository;
 import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamAttemptRepository;
 import com.example.swd392_se1907_aives.modules.examination.internal.repository.ExamCandidateRepository;
@@ -23,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,16 +50,26 @@ public class AttemptGradingServiceImpl implements AttemptGradingService {
 
     @Override
     public GradingView get(UUID attemptId) {
-        return view(authorized(attemptId));
+        var attempt = authorized(attemptId);
+        if ("STUDENT".equals(access.current().getRole())) {
+            var published = published(attempt);
+            String status = published != null ? "PUBLISHED"
+                    : "COMPLETED".equals(attempt.getStatus()) ? "AWAITING_PUBLICATION" : "NOT_STARTED";
+            return new GradingView(attemptId, status, null, null, null, null, published);
+        }
+        return view(attempt);
     }
 
     @Override
     public GradingView retry(UUID attemptId) {
+        requireLecturer();
         authorized(attemptId);
         return new TransactionTemplate(transactions)
                 .execute(
                         status -> {
                             var attempt = attempts.findLockedById(attemptId).orElseThrow();
+                            if (attempt.getPublishedAt() != null)
+                                throw conflict("Điểm đã được công bố.");
                             if (!"COMPLETED".equals(attempt.getStatus()))
                                 throw conflict("Chỉ chấm sau khi toàn bộ lượt thi đã kết thúc.");
                             if (attempt.getRubricSnapshot() == null)
@@ -73,6 +86,37 @@ public class AttemptGradingServiceImpl implements AttemptGradingService {
                             attempts.save(attempt);
                             return view(attempt);
                         });
+    }
+
+    @Override
+    public GradingView publish(UUID attemptId, PublishRequest request) {
+        var lecturerId = requireLecturer();
+        authorized(attemptId);
+        return new TransactionTemplate(transactions).execute(transaction -> {
+            var attempt = attempts.findLockedById(attemptId).orElseThrow();
+            if (!"COMPLETED".equals(attempt.getStatus()))
+                throw conflict("Chỉ công bố điểm sau khi lượt thi hoàn thành.");
+            if (attempt.getPublishedAt() != null)
+                throw conflict("Điểm của lượt thi này đã được công bố.");
+            var maxScore = maxScore(attempt);
+            if (maxScore == null) throw conflict("Lượt thi chưa có thang điểm rubric hợp lệ.");
+            if (request.score().signum() < 0 || request.score().compareTo(maxScore) > 0)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Điểm phải nằm trong thang điểm rubric.");
+            attempt.setPublishedScore(request.score());
+            attempt.setPublishedMaxScore(maxScore);
+            attempt.setPublishedFeedback(request.feedback().trim());
+            attempt.setPublishedBy(lecturerId);
+            attempt.setPublishedAt(OffsetDateTime.now());
+            attempts.save(attempt);
+            return view(attempt);
+        });
+    }
+
+    private UUID requireLecturer() {
+        var actor = access.current();
+        if (!"LECTURER".equals(actor.getRole()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ giảng viên được duyệt điểm.");
+        return actor.getId();
     }
 
     @Override
@@ -232,7 +276,24 @@ public class AttemptGradingServiceImpl implements AttemptGradingService {
                     HttpStatus.INTERNAL_SERVER_ERROR, "Không đọc được kết quả chấm bài.");
         }
         return new GradingView(
-                attempt.getId(), status, attempt.getGradingError(), attempt.getGradedAt(), result);
+                attempt.getId(), status, attempt.getGradingError(), attempt.getGradedAt(), result,
+                maxScore(attempt), published(attempt));
+    }
+
+    private PublishedGrade published(ExamAttempt attempt) {
+        return attempt.getPublishedAt() == null ? null : new PublishedGrade(
+                attempt.getPublishedScore(), attempt.getPublishedMaxScore(),
+                attempt.getPublishedFeedback(), attempt.getPublishedAt());
+    }
+
+    private BigDecimal maxScore(ExamAttempt attempt) {
+        if (attempt.getRubricSnapshot() == null) return null;
+        try {
+            var max = json.readTree(attempt.getRubricSnapshot()).path("maxScore");
+            return max.isNumber() && max.decimalValue().signum() > 0 ? max.decimalValue() : null;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException invalidSnapshot) {
+            return null;
+        }
     }
 
     private ResponseStatusException conflict(String message) {
