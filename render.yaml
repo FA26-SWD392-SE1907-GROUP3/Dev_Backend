@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: avies
+    runtime: docker
+    rootDir: SWD392_SE1907_AIVES
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    plan: free
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://avies.vercel.app

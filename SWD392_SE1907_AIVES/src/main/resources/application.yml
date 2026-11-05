@@ -8,9 +8,9 @@ spring:
 
   # DATABASE (Neon PostgreSQL Cloud)
   datasource:
-    url: "${DB_URL:jdbc:postgresql://ep-divine-leaf-b5hw8wos-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channelBinding=require}"
-    username: ${DB_USERNAME:neondb_owner}
-    password: ${DB_PASSWORD:npg_mEAD3Qs0KJjF}
+    url: "${DB_URL}"
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:5}
